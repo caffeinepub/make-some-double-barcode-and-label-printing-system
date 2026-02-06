@@ -9,8 +9,8 @@ import AccessControl "authorization/access-control";
 import Runtime "mo:core/Runtime";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
-import MixinAuthorization "authorization/MixinAuthorization";
 import Migration "migration";
+import MixinAuthorization "authorization/MixinAuthorization";
 
 (with migration = Migration.run)
 actor {
@@ -36,7 +36,7 @@ actor {
     customText : Text;
     textSize : Nat;
     font : Text;
-    // Added for layout persistence
+    // Persistable position and layout controls
     barcodePositionX : Nat;
     barcodePositionY : Nat;
     textPositionX : Nat;
@@ -160,6 +160,19 @@ actor {
   };
 
   public query ({ caller }) func getAllLabelConfigs() : async [LabelConfig] {
+    requirePasswordAuth(caller);
+    labelConfigs.values().toArray();
+  };
+
+  public query ({ caller }) func getLabelConfigPreview(name : Text) : async LabelConfig {
+    requirePasswordAuth(caller);
+    switch (labelConfigs.get(name)) {
+      case (null) { Runtime.trap("Config does not exist") };
+      case (?config) { config };
+    };
+  };
+
+  public query ({ caller }) func getAllLabelConfigsPreview() : async [LabelConfig] {
     requirePasswordAuth(caller);
     labelConfigs.values().toArray();
   };

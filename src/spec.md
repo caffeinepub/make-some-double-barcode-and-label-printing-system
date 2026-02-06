@@ -1,11 +1,14 @@
 # Specification
 
 ## Summary
-**Goal:** Ensure CPCL labels print with centered, non-overlapping barcode + serial blocks (matching the physical reference), make Label Settings affect actual print output with persistence, and fix serial-prefix-based title mapping.
+**Goal:** Make the Label Settings preview match the CPCL printed output 1:1 by unifying layout calculations, and ensure saved label layout settings stay synchronized between UI, backend persistence, and printing.
 
 **Planned changes:**
-- Update CPCL command generation so each barcode and its serial text are horizontally centered on the label, with consistent vertical spacing so barcode/text never overlap (including when barcode height changes), and with adequate spacing between the first and second barcode+text blocks.
-- Wire Label Settings (barcode X/Y, text Y, barcode height/width scale, and any spacing/centering parameters used) to the CPCL generation used for printing (not preview only), persist these settings, and reload/apply them on future prints.
-- Fix prefix-to-title mapping for scanned/printed serials: "55V" → "Dual Band", "55Y" → "Tri Band", "72V" → "New Version Dual Band", and initialize these defaults if mappings are empty/uninitialized.
+- Create a single shared layout computation (in dots) that is used by both the Settings preview renderer and the CPCL command generator so centering, X/Y positions, barcode scaling, and spacing match exactly.
+- Fix preview rendering stability so dot-to-pixel scaling does not accumulate distortion across repeated adjustments/re-renders.
+- Correct centering behavior so, when enabled, both barcode blocks are horizontally centered consistently in both preview and printed output.
+- Enforce minimum non-overlapping gaps: between each barcode and its serial-number text, and between the first and second barcode blocks; clamp effective spacing when user settings would cause overlap and reflect the clamped layout in the preview.
+- Load all label layout-related controls from the saved backend LabelConfig on page load, allow editing, persist on Save, and ensure CPCL printing uses the newly saved values (not preview-only).
+- When centering is disabled, respect user-configured X/Y positioning for barcode/text in both preview and CPCL output, keeping text/title/barcode X calculations consistent (avoid preview-only approximations that cause drift).
 
-**User-visible outcome:** Printed labels show correctly centered barcodes and serial numbers with clear spacing and no collisions; changes made in Label Settings reliably change the printed output and persist across app restarts; scanned serial prefixes display/print the correct title.
+**User-visible outcome:** Adjusting label layout settings updates the on-screen preview and the printed CPCL label identically, with reliable centering/spacing, no preview scaling drift, and saved settings that apply to future prints.

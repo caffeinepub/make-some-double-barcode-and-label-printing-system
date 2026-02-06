@@ -271,21 +271,13 @@ export function ScanPrint() {
 
     // Load persisted label config (if available)
     const defaultConfig = labelConfigs.find(c => true); // Get first config (default)
-    const DOTS_TO_MM = 203 / 25.4; // ~8 dots per mm
-    const mmToDots = (mm: number) => Math.round(mm * DOTS_TO_MM);
 
     // Step 1: USB Print (if applicable)
     let usbPrintSuccess = false;
     if (protocol === 'CPCL' && usbPrinter.isConnected) {
       try {
         const cpclCommand = generateDualSerialCpcl(normalizedSerial1, normalizedSerial2, title, {
-          width: defaultConfig ? Number(defaultConfig.width) : undefined,
-          height: defaultConfig ? Number(defaultConfig.height) : undefined,
-          barcodeHeight: defaultConfig ? Number(defaultConfig.barcodeHeight) : undefined,
-          barcodeWidthScale: defaultConfig ? Number(defaultConfig.barcodeWidthScale) : undefined,
-          centerContents: defaultConfig ? defaultConfig.centerContents : true,
-          textGap: defaultConfig ? Number(defaultConfig.textPositionY) - Number(defaultConfig.barcodePositionY) - Number(defaultConfig.barcodeHeight) : undefined,
-          blockSpacing: defaultConfig ? Number(defaultConfig.horizontalSpacing) : undefined,
+          config: defaultConfig || null,
         });
         await usbPrinter.sendCpcl(cpclCommand);
         usbPrintSuccess = true;
@@ -475,7 +467,6 @@ export function ScanPrint() {
                   <p className="text-white font-medium text-lg">{printerConnected ? 'Connected' : 'Not Connected'}</p>
                 </div>
               </div>
-              <Printer className="w-10 h-10 text-zinc-600" />
             </div>
           </CardContent>
         </Card>
@@ -484,12 +475,10 @@ export function ScanPrint() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-base text-zinc-400">Dual Band (55V)</p>
-                <p className="text-4xl font-bold text-white">{dualLabels}</p>
+                <p className="text-base text-zinc-400">Dual Band Labels</p>
+                <p className="text-5xl font-bold text-white">{dualLabels}</p>
               </div>
-              <Badge className="bg-blue-600 hover:bg-blue-700 text-white text-base px-4 py-2">
-                55V
-              </Badge>
+              <Printer className="h-12 w-12 text-blue-500" />
             </div>
           </CardContent>
         </Card>
@@ -498,12 +487,10 @@ export function ScanPrint() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-base text-zinc-400">Tri Band (55Y)</p>
-                <p className="text-4xl font-bold text-white">{triLabels}</p>
+                <p className="text-base text-zinc-400">Tri Band Labels</p>
+                <p className="text-5xl font-bold text-white">{triLabels}</p>
               </div>
-              <Badge className="bg-zinc-700 hover:bg-zinc-600 text-white text-base px-4 py-2">
-                55Y
-              </Badge>
+              <Printer className="h-12 w-12 text-purple-500" />
             </div>
           </CardContent>
         </Card>
@@ -512,132 +499,100 @@ export function ScanPrint() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-base text-zinc-400">New Version Dual Band (72V)</p>
-                <p className="text-4xl font-bold text-white">{Number(dualLabelCount)}</p>
+                <p className="text-base text-zinc-400">Total Scanned</p>
+                <p className="text-5xl font-bold text-white">{scannedSerials.length}</p>
               </div>
-              <Badge className="bg-blue-600 hover:bg-blue-700 text-white text-base px-4 py-2">
-                72V
-              </Badge>
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {blockingError && (
+        <Card className="bg-red-950/20 border-red-900">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-6 w-6 text-red-500" />
+              <div>
+                <p className="text-red-400 font-medium text-base">Error</p>
+                <p className="text-red-300 text-sm">{blockingError}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="bg-[#0f0f0f] border-zinc-800">
         <CardHeader>
           <CardTitle className="text-white text-2xl">Scan Serial Numbers</CardTitle>
           <CardDescription className="text-zinc-400 text-base">
-            Use barcode scanner only - manual entry is disabled
+            Scan two serial numbers to print a dual-band label
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="space-y-3">
-            <Label htmlFor="first-serial" className="text-white text-lg">
-              First Serial Number
+          <div className="space-y-2">
+            <Label htmlFor="firstSerial" className="text-white text-base">
+              First Serial Number {activeField === 'first' && <Badge variant="outline" className="ml-2">Active</Badge>}
             </Label>
             <Input
               ref={firstInputRef}
-              id="first-serial"
+              id="firstSerial"
               value={firstSerial}
+              onChange={(e) => setFirstSerial(e.target.value)}
               onKeyDown={handleFirstInputKeyDown}
               onPaste={handleInputPaste}
               onDrop={handleInputDrop}
               onFocus={handleInputFocus}
-              onChange={() => {}} // Controlled but read-only
               placeholder="Scan first barcode..."
               className={getInputClassName(firstSerialState, activeField === 'first')}
-              autoComplete="off"
-              inputMode="none"
-              tabIndex={-1}
+              readOnly
             />
           </div>
 
-          <div className="space-y-3">
-            <Label htmlFor="second-serial" className="text-white text-lg">
-              Second Serial Number
+          <div className="space-y-2">
+            <Label htmlFor="secondSerial" className="text-white text-base">
+              Second Serial Number {activeField === 'second' && <Badge variant="outline" className="ml-2">Active</Badge>}
             </Label>
             <Input
               ref={secondInputRef}
-              id="second-serial"
+              id="secondSerial"
               value={secondSerial}
+              onChange={(e) => setSecondSerial(e.target.value)}
               onKeyDown={handleSecondInputKeyDown}
               onPaste={handleInputPaste}
               onDrop={handleInputDrop}
               onFocus={handleInputFocus}
-              onChange={() => {}} // Controlled but read-only
               placeholder="Scan second barcode..."
               className={getInputClassName(secondSerialState, activeField === 'second')}
-              autoComplete="off"
-              inputMode="none"
-              tabIndex={-1}
+              readOnly
             />
           </div>
 
-          {blockingError && (
-            <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-4 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-red-400 text-base font-medium">Auto-print blocked</p>
-                <p className="text-red-400/80 text-sm mt-1">{blockingError}</p>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between py-4">
-            <Label htmlFor="batch-mode" className="text-white text-lg">
-              Batch Mode
-            </Label>
-            <div className="flex items-center gap-4">
-              <span className="text-base text-zinc-400">{batchMode ? 'Enabled' : 'Disabled'}</span>
-              <Switch
-                id="batch-mode"
-                checked={batchMode}
-                onCheckedChange={setBatchMode}
-                className="data-[state=checked]:bg-blue-600 scale-125"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <Button
               onClick={handlePrintLabel}
-              disabled={!firstSerial || !secondSerial || !printerConnected || printMutation.isPending}
-              className="bg-blue-600 hover:bg-blue-700 text-white h-14 text-base active:scale-95 transition-transform"
+              disabled={!firstSerial || !secondSerial || !printerConnected}
+              className="h-12 text-base bg-blue-600 hover:bg-blue-700"
             >
-              <Printer className="w-5 h-5 mr-2" />
+              <Printer className="mr-2 h-5 w-5" />
               Print Label
             </Button>
+
             <Button
               onClick={handleClearCurrent}
-              variant="secondary"
-              className="bg-[#1a1a1a] hover:bg-zinc-800 text-white border border-zinc-700 h-14 text-base active:scale-95 transition-transform"
+              variant="outline"
+              className="h-12 text-base"
             >
-              Clear Current
+              Clear
             </Button>
+
             <Button
               onClick={handleTestScan}
-              variant="secondary"
-              className="bg-zinc-700 hover:bg-zinc-600 text-white h-14 text-base active:scale-95 transition-transform"
+              variant="outline"
+              className="h-12 text-base"
             >
               Test Scan
             </Button>
-            <Button
-              onClick={handleResetCounters}
-              variant="secondary"
-              className="bg-[#1a1a1a] hover:bg-zinc-800 text-white border border-zinc-700 h-14 text-base active:scale-95 transition-transform"
-            >
-              Reset Counters
-            </Button>
           </div>
-
-          {!printerConnected && (
-            <div className="bg-red-950/30 border border-red-900/50 rounded-lg p-5">
-              <p className="text-red-400 text-base font-medium">No printer connected</p>
-              <p className="text-red-400/70 text-sm mt-1">
-                Please connect a printer in the Devices tab
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

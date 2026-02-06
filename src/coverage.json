@@ -1,52 +1,74 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-06T06:55:41.413Z",
+  "generatedAt": "2026-02-06T22:20:03.614Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 3,
-    "implemented": 3,
+    "total": 4,
+    "implemented": 4,
     "items": [
       {
-        "id": "REQ-2",
-        "summary": "Update CPCL print generation so barcode(s) and serial number text are horizontally centered on the label and never overlap, with clear vertical spacing between each barcode and its serial text (matching the physical reference label).",
+        "id": "REQ-10",
+        "summary": "Ensure Label Settings position adjustments (barcodePositionX/Y, textPositionX/Y, barcodeHeight, barcodeWidthScale, horizontalSpacing, and any gap/spacing controls) are loaded from the saved backend LabelConfig, editable in the UI, persisted back to the backend on Save, and applied to CPCL printing (not preview-only).",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/utils/cpclTemplates.ts"
-        ],
-        "matchedFiles": [
-          "frontend/src/utils/cpclTemplates.ts"
-        ]
-      },
-      {
-        "id": "REQ-3",
-        "summary": "Make Label Settings adjustments for barcode/text positions, barcode height/width scale, and spacing/centering affect the actual CPCL label print output (not preview only), including persisting these layout settings and using them when generating CPCL commands.",
-        "status": "implemented",
-        "plannedFiles": [
+          "frontend/src/pages/LabelSettings.tsx",
           "frontend/src/hooks/useQueries.ts",
-          "frontend/src/pages/LabelSettings.tsx",
           "frontend/src/pages/ScanPrint.tsx",
-          "frontend/src/utils/cpclTemplates.ts"
+          "frontend/src/utils/labelLayoutModel.ts"
         ],
         "matchedFiles": [
           "frontend/src/pages/LabelSettings.tsx",
-          "frontend/src/pages/ScanPrint.tsx",
-          "frontend/src/utils/cpclTemplates.ts"
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/utils/labelLayoutModel.ts"
         ]
       },
       {
-        "id": "REQ-4",
-        "summary": "Fix prefix-to-title mapping so each serial prefix resolves to the correct label title: \"55V\" → \"Dual Band\", \"55Y\" → \"Tri Band\", \"72V\" → \"New Version Dual Band\"; ensure the app no longer shows the same title for different prefixes.",
+        "id": "REQ-11",
+        "summary": "Update the unified layout computation to correctly respect user-configured text positioning when centering is disabled, and keep title/barcode/text X calculations consistent between preview and CPCL (avoid preview-only text width approximations that cause drift).",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/pages/ScanPrint.tsx",
+          "frontend/src/utils/labelLayoutModel.ts",
+          "frontend/src/utils/labelPreviewRenderer.ts",
+          "frontend/src/utils/cpclTemplates.ts",
           "frontend/src/pages/LabelSettings.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/pages/ScanPrint.tsx",
+          "frontend/src/utils/labelLayoutModel.ts",
+          "frontend/src/utils/labelPreviewRenderer.ts",
+          "frontend/src/pages/LabelSettings.tsx"
+        ]
+      },
+      {
+        "id": "REQ-8",
+        "summary": "Make the Label Settings preview and CPCL print generation use the same single source of truth for layout calculations so the Settings preview matches the printed label 1:1 (same centering, same X/Y positions, same barcode height/width scaling, same spacing/gaps).",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/utils/labelLayoutModel.ts",
+          "frontend/src/utils/cpclTemplates.ts",
+          "frontend/src/utils/labelPreviewRenderer.ts",
+          "frontend/src/pages/LabelSettings.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/utils/labelLayoutModel.ts",
+          "frontend/src/utils/labelPreviewRenderer.ts",
+          "frontend/src/pages/LabelSettings.tsx"
+        ]
+      },
+      {
+        "id": "REQ-9",
+        "summary": "Fix layout centering and spacing so both barcodes are horizontally centered on the label when centering is enabled, and there is always a clear, non-overlapping gap between each barcode and its serial number text in both preview and printed output.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/utils/labelLayoutModel.ts",
+          "frontend/src/pages/LabelSettings.tsx",
+          "frontend/src/utils/cpclTemplates.ts"
+        ],
+        "matchedFiles": [
+          "frontend/src/utils/labelLayoutModel.ts",
           "frontend/src/pages/LabelSettings.tsx"
         ]
       }
@@ -56,7 +78,6 @@
     "backend/main.mo",
     "backend/migration.mo",
     "build-request.json",
-    "caffeine.lock.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
@@ -64,9 +85,10 @@
     "frontend/src/backend.ts",
     "frontend/src/declarations/backend.did.d.ts",
     "frontend/src/declarations/backend.did.js",
+    "frontend/src/hooks/useQueries.ts",
     "frontend/src/pages/LabelSettings.tsx",
-    "frontend/src/pages/ScanPrint.tsx",
-    "frontend/src/utils/cpclTemplates.ts",
+    "frontend/src/utils/labelLayoutModel.ts",
+    "frontend/src/utils/labelPreviewRenderer.ts",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

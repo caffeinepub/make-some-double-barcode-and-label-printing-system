@@ -1,105 +1,58 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
-import type { LabelConfig, Printer, PrintRecord, ErrorLog, UserProfile, TitleMapping } from '../backend';
+import { LabelConfig, Printer, PrintRecord, ErrorLog, UserProfile, TitleMapping } from '../backend';
+import { Principal } from '@dfinity/principal';
 
+// Query keys
 const QUERY_KEYS = {
-  printers: ['printers'],
-  labelConfigs: ['labelConfigs'],
-  printHistory: ['printHistory'],
-  errorLogs: ['errorLogs'],
-  userProfile: ['userProfile'],
-  authenticated: ['authenticated'],
-  dualLabelCount: ['dualLabelCount'],
-  validPrefixes: ['validPrefixes'],
-  titleMappings: ['titleMappings'],
-  health: ['health'],
+  PRINTERS: ['printers'],
+  LABEL_CONFIGS: ['labelConfigs'],
+  PRINT_RECORDS: ['printRecords'],
+  ERROR_LOGS: ['errorLogs'],
+  DUAL_LABEL_COUNT: ['dualLabelCount'],
+  PREFIXES: ['prefixes'],
+  TITLE_MAPPINGS: ['titleMappings'],
+  USER_PROFILE: ['userProfile'],
+  HEALTH: ['health'],
 };
 
-// Timeout wrapper for backend calls
-async function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number = 10000,
-  errorMessage: string = 'Request timeout'
-): Promise<T> {
-  let timeoutId: NodeJS.Timeout | undefined;
-  
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error(errorMessage));
-    }, timeoutMs);
-  });
-
-  try {
-    const result = await Promise.race([promise, timeoutPromise]);
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId);
-    }
-    return result;
-  } catch (error) {
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId);
-    }
-    throw error;
-  }
-}
-
-// Health check hook - can be called without authentication
-export function useHealthCheck() {
-  const { actor } = useActor();
-
-  return useMutation({
-    mutationFn: async () => {
-      if (!actor) {
-        throw new Error('Actor not initialized');
-      }
-      
-      try {
-        const result = await withTimeout(
-          actor.health(),
-          5000,
-          'Health check timeout'
-        );
-        return result;
-      } catch (error: any) {
-        throw error;
-      }
-    },
-    retry: false,
-  });
-}
-
+// Authentication
 export function useAuthenticate() {
   const { actor } = useActor();
 
   return useMutation({
     mutationFn: async (password: string) => {
-      if (!actor) {
-        throw new Error('Actor not initialized');
-      }
-      
-      try {
-        const result = await withTimeout(
-          actor.authenticate(password),
-          10000,
-          'Connection timeout - unable to reach server'
-        );
-        return result;
-      } catch (error: any) {
-        if (error.message?.includes('timeout')) {
-          throw new Error('Connection timeout - unable to reach server');
-        }
-        throw error;
-      }
+      if (!actor) throw new Error('Actor not available');
+      return actor.authenticate(password);
     },
-    retry: false,
   });
 }
 
+// Health check mutation (for manual health checks)
+export function useHealthCheck() {
+  const { actor } = useActor();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Health check timeout')), 5000);
+      });
+      
+      const healthPromise = actor.health();
+      
+      return Promise.race([healthPromise, timeoutPromise]);
+    },
+  });
+}
+
+// User Profile Queries
 export function useGetCallerUserProfile() {
   const { actor, isFetching: actorFetching } = useActor();
 
   const query = useQuery<UserProfile | null>({
-    queryKey: QUERY_KEYS.userProfile,
+    queryKey: QUERY_KEYS.USER_PROFILE,
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
       return actor.getCallerUserProfile();
@@ -121,25 +74,26 @@ export function useSaveCallerUserProfile() {
 
   return useMutation({
     mutationFn: async (profile: UserProfile) => {
-      if (!actor) throw new Error('Actor not initialized');
-      await actor.saveCallerUserProfile(profile);
+      if (!actor) throw new Error('Actor not available');
+      return actor.saveCallerUserProfile(profile);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.userProfile });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE });
     },
   });
 }
 
+// Printer Queries
 export function usePrinters() {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<Printer[]>({
-    queryKey: QUERY_KEYS.printers,
+    queryKey: QUERY_KEYS.PRINTERS,
     queryFn: async () => {
       if (!actor) return [];
       return actor.getAllPrinters();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !actorFetching,
   });
 }
 
@@ -149,11 +103,11 @@ export function useAddPrinter() {
 
   return useMutation({
     mutationFn: async ({ name, connectionType }: { name: string; connectionType: string }) => {
-      if (!actor) throw new Error('Actor not initialized');
-      await actor.addPrinter(name, connectionType);
+      if (!actor) throw new Error('Actor not available');
+      return actor.addPrinter(name, connectionType);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.printers });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRINTERS });
     },
   });
 }
@@ -164,25 +118,26 @@ export function useUpdatePrinterStatus() {
 
   return useMutation({
     mutationFn: async ({ name, status }: { name: string; status: string }) => {
-      if (!actor) throw new Error('Actor not initialized');
-      await actor.updatePrinterStatus(name, status);
+      if (!actor) throw new Error('Actor not available');
+      return actor.updatePrinterStatus(name, status);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.printers });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRINTERS });
     },
   });
 }
 
+// Label Config Queries
 export function useLabelConfigs() {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<LabelConfig[]>({
-    queryKey: QUERY_KEYS.labelConfigs,
+    queryKey: QUERY_KEYS.LABEL_CONFIGS,
     queryFn: async () => {
       if (!actor) return [];
       return actor.getAllLabelConfigs();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !actorFetching,
   });
 }
 
@@ -192,63 +147,74 @@ export function useSaveLabelConfig() {
 
   return useMutation({
     mutationFn: async ({ name, config }: { name: string; config: LabelConfig }) => {
-      if (!actor) throw new Error('Actor not initialized');
-      await actor.saveLabelConfig(name, config);
+      if (!actor) throw new Error('Actor not available');
+      return actor.saveLabelConfig(name, config);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.labelConfigs });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.LABEL_CONFIGS });
     },
   });
 }
 
-export function usePrintHistory() {
-  const { actor, isFetching } = useActor();
+// Print Record Queries
+export function usePrintRecords() {
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<PrintRecord[]>({
-    queryKey: QUERY_KEYS.printHistory,
+    queryKey: QUERY_KEYS.PRINT_RECORDS,
     queryFn: async () => {
       if (!actor) return [];
-      const records = await actor.getAllPrintRecords();
-      return records.sort((a, b) => Number(b.timestamp - a.timestamp));
+      return actor.getAllPrintRecords();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !actorFetching,
   });
 }
+
+// Alias for backward compatibility
+export const usePrintHistory = usePrintRecords;
 
 export function usePrintLabel() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      serialNumber,
-      labelType,
-      printer,
-    }: {
-      serialNumber: string;
-      labelType: string;
-      printer: string;
-    }) => {
-      if (!actor) throw new Error('Actor not initialized');
-      await actor.addPrintRecord(serialNumber, labelType, printer);
+    mutationFn: async ({ serialNumber, labelType, printer }: { serialNumber: string; labelType: string; printer: string }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.addPrintRecord(serialNumber, labelType, printer);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.printHistory });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRINT_RECORDS });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DUAL_LABEL_COUNT });
     },
   });
 }
 
+export function useClearPrintHistory() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.clearPrintHistory();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRINT_RECORDS });
+    },
+  });
+}
+
+// Error Log Queries
 export function useErrorLogs() {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<ErrorLog[]>({
-    queryKey: QUERY_KEYS.errorLogs,
+    queryKey: QUERY_KEYS.ERROR_LOGS,
     queryFn: async () => {
       if (!actor) return [];
-      const logs = await actor.getAllErrorLogs();
-      return logs.sort((a, b) => Number(b.timestamp - a.timestamp));
+      return actor.getAllErrorLogs();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !actorFetching,
   });
 }
 
@@ -257,26 +223,42 @@ export function useAddErrorLog() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ errorMessage, printer }: { errorMessage: string; printer?: string | null }) => {
-      if (!actor) throw new Error('Actor not initialized');
-      await actor.addErrorLog(errorMessage, printer || null);
+    mutationFn: async ({ errorMessage, printer }: { errorMessage: string; printer: string | null }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.addErrorLog(errorMessage, printer);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.errorLogs });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ERROR_LOGS });
     },
   });
 }
 
+export function useClearErrorLogs() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.clearErrorLogs();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.ERROR_LOGS });
+    },
+  });
+}
+
+// Counter Queries
 export function useGetDualLabelCount() {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<bigint>({
-    queryKey: QUERY_KEYS.dualLabelCount,
+    queryKey: QUERY_KEYS.DUAL_LABEL_COUNT,
     queryFn: async () => {
       if (!actor) return BigInt(0);
       return actor.getNewDualLabelCount();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !actorFetching,
   });
 }
 
@@ -286,26 +268,41 @@ export function useIncrementDualLabelCount() {
 
   return useMutation({
     mutationFn: async () => {
-      if (!actor) throw new Error('Actor not initialized');
+      if (!actor) throw new Error('Actor not available');
       return actor.incrementNewDualLabelCount();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dualLabelCount });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DUAL_LABEL_COUNT });
     },
   });
 }
 
-// Prefix validation hooks
+export function useResetAllCounters() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.resetAllCounters();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DUAL_LABEL_COUNT });
+    },
+  });
+}
+
+// Prefix Validation Queries
 export function useGetValidPrefixes() {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<string[]>({
-    queryKey: QUERY_KEYS.validPrefixes,
+    queryKey: QUERY_KEYS.PREFIXES,
     queryFn: async () => {
       if (!actor) return [];
       return actor.getPrefixes();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !actorFetching,
   });
 }
 
@@ -314,19 +311,12 @@ export function useAddMultiplePrefixes() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (prefixesText: string) => {
-      if (!actor) throw new Error('Actor not initialized');
-      
-      // Parse comma-separated or multiline prefixes
-      const prefixes = prefixesText
-        .split(/[,\n]/)
-        .map(p => p.trim())
-        .filter(p => p.length > 0);
-      
-      await actor.setPrefixes(prefixes);
+    mutationFn: async (prefixes: string[]) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.setPrefixes(prefixes);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.validPrefixes });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PREFIXES });
     },
   });
 }
@@ -336,23 +326,34 @@ export function useValidateBarcode() {
 
   return useMutation({
     mutationFn: async (barcode: string) => {
-      if (!actor) throw new Error('Actor not initialized');
+      if (!actor) throw new Error('Actor not available');
       return actor.validateBarcode(barcode);
     },
   });
 }
 
-// Title mapping hooks
+// Title Mapping Queries
 export function useGetTitleMappings() {
-  const { actor, isFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<TitleMapping[]>({
-    queryKey: QUERY_KEYS.titleMappings,
+    queryKey: QUERY_KEYS.TITLE_MAPPINGS,
     queryFn: async () => {
       if (!actor) return [];
       return actor.getAllTitleMappings();
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!actor && !actorFetching,
+  });
+}
+
+export function useGetTitleByPrefix() {
+  const { actor } = useActor();
+
+  return useMutation({
+    mutationFn: async (prefix: string) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getTitleByPrefix(prefix);
+    },
   });
 }
 
@@ -362,22 +363,11 @@ export function useInitializeDefaultTitles() {
 
   return useMutation({
     mutationFn: async () => {
-      if (!actor) throw new Error('Actor not initialized');
-      await actor.initializeDefaultTitles();
+      if (!actor) throw new Error('Actor not available');
+      return actor.initializeDefaultTitles();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.titleMappings });
-    },
-  });
-}
-
-export function useGetTitleByPrefix() {
-  const { actor } = useActor();
-
-  return useMutation({
-    mutationFn: async (prefix: string) => {
-      if (!actor) throw new Error('Actor not initialized');
-      return actor.getTitleByPrefix(prefix);
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TITLE_MAPPINGS });
     },
   });
 }

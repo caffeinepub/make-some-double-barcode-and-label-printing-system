@@ -65,12 +65,14 @@ export interface backendInterface {
     clearPrintHistory(): Promise<void>;
     getAllErrorLogs(): Promise<Array<ErrorLog>>;
     getAllLabelConfigs(): Promise<Array<LabelConfig>>;
+    getAllLabelConfigsPreview(): Promise<Array<LabelConfig>>;
     getAllPrintRecords(): Promise<Array<PrintRecord>>;
     getAllPrinters(): Promise<Array<Printer>>;
     getAllTitleMappings(): Promise<Array<TitleMapping>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getLabelConfig(name: string): Promise<LabelConfig>;
+    getLabelConfigPreview(name: string): Promise<LabelConfig>;
     getNewDualLabelCount(): Promise<bigint>;
     getPrefixes(): Promise<Array<string>>;
     getPrinter(name: string): Promise<Printer>;

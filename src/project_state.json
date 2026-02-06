@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 67,
+  "projectStateVersion": 71,
   "summary": "Make Some Double!! is a tablet-friendly barcode scanning and label printing web app backed by an Internet Computer (Motoko) canister. The frontend provides four main tabs (Scan & Print, Label Settings, Devices, Diagnostics) and a password-based login screen. After authentication, users can manage printers (logical connections), configure label parameters and validation prefixes, scan two serial numbers to create a combined print record, track counters (notably for “New Dual (72V)” labels), and review/export print history and error logs. The backend canister stores user profiles, label configs, printer records, print history, error logs, prefix rules, and title mappings, and enforces a password-authenticated session per caller principal.",
   "architectural_notes": [
     "Frontend is a React + TypeScript SPA with a dark, touch-optimized UI (Tailwind + shadcn/ui components, lucide-react icons).",
@@ -24,7 +24,7 @@
     "Sound settings UI (upload custom sounds, storage) is present but not implemented; Audio elements are created with no sources and uploads have no handlers.",
     "Diagnostics ‘Clear’ action is a placeholder (toast only) despite backend endpoints existing (clearPrintHistory/clearErrorLogs/resetAllCounters).",
     "usePrintHistory/useErrorLogs sorting uses Number(b.timestamp - a.timestamp) where timestamps likely deserialize as BigInt; conversion can be lossy for large values and may cause runtime/type issues depending on generated types.",
-    "withTimeout in frontend uses NodeJS.Timeout typing; in a browser build, setTimeout returns a number—this can cause TS type friction depending on tsconfig libs."
+    "Label Settings preview and CPCL printed output are not using a fully synchronized layout model/units, so adjusting barcode/text positions can change the preview without matching the physical printed label (centering and barcode-to-serial gap drift)."
   ],
   "isFixRequest": true,
   "existing_features": [
@@ -305,6 +305,62 @@
       "title": "Fix prefix-to-title mapping so each serial prefix resolves to the correct label title: \"55V\" → \"Dual Band\", \"55Y\" → \"Tri Band\", \"72V\" → \"New Version Dual Band\"; ensure the app no longer shows the same title for different prefixes.",
       "reqIds": [
         "REQ-4"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-make-the-label-settings-preview-render-using-the-same-layout-model-and-units-as-cpcl-printing-so-the-preview-matches-the-physical-printed-label-size-centering-and-vertical-spacing-the-preview-must-include-the-label-title-and-must-visually-match-the-printed-layout-shown-in-the-uploaded-reference-photos-barcodes-centered-title-at-top-and-clear-gap-between-each-barcode-and-its-serial-text",
+      "title": "Make the Label Settings preview render using the same layout model and units as CPCL printing so the preview matches the physical printed label (size, centering, and vertical spacing). The preview must include the label title and must visually match the printed layout shown in the uploaded reference photos (barcodes centered, title at top, and clear gap between each barcode and its serial text).",
+      "reqIds": [
+        "REQ-5"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-ensure-all-relevant-label-settings-layout-adjustments-barcode-x-y-text-x-y-barcode-height-barcode-width-scale-block-spacing-between-barcode-groups-and-barcode-to-text-gap-are-used-when-generating-cpcl-commands-for-printing-so-the-printed-label-matches-the-settings-not-just-the-preview",
+      "title": "Ensure all relevant Label Settings layout adjustments (barcode X/Y, text X/Y, barcode height, barcode width scale, block spacing between barcode groups, and barcode-to-text gap) are used when generating CPCL commands for printing, so the printed label matches the settings (not just the preview).",
+      "reqIds": [
+        "REQ-6"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-guardrails-to-prevent-overlapping-content-in-both-preview-and-print-output-enforce-a-minimum-barcode-to-serial-text-gap-and-minimum-spacing-between-the-first-and-second-barcode-blocks-if-the-user-configured-values-would-cause-overlap-automatically-clamp-to-the-minimum-safe-spacing-and-reflect-the-effective-values-in-the-preview",
+      "title": "Add guardrails to prevent overlapping content in both preview and print output: enforce a minimum barcode-to-serial text gap and minimum spacing between the first and second barcode blocks. If the user-configured values would cause overlap, automatically clamp to the minimum safe spacing and reflect the effective values in the preview.",
+      "reqIds": [
+        "REQ-7"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-make-the-label-settings-preview-and-cpcl-print-generation-use-the-same-single-source-of-truth-for-layout-calculations-so-the-settings-preview-matches-the-printed-label-1-1-same-centering-same-x-y-positions-same-barcode-height-width-scaling-same-spacing-gaps",
+      "title": "Make the Label Settings preview and CPCL print generation use the same single source of truth for layout calculations so the Settings preview matches the printed label 1:1 (same centering, same X/Y positions, same barcode height/width scaling, same spacing/gaps).",
+      "reqIds": [
+        "REQ-8"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-layout-centering-and-spacing-so-both-barcodes-are-horizontally-centered-on-the-label-when-centering-is-enabled-and-there-is-always-a-clear-non-overlapping-gap-between-each-barcode-and-its-serial-number-text-in-both-preview-and-printed-output",
+      "title": "Fix layout centering and spacing so both barcodes are horizontally centered on the label when centering is enabled, and there is always a clear, non-overlapping gap between each barcode and its serial number text in both preview and printed output.",
+      "reqIds": [
+        "REQ-9"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-ensure-label-settings-position-adjustments-barcodepositionx-y-textpositionx-y-barcodeheight-barcodewidthscale-horizontalspacing-and-any-gap-spacing-controls-are-loaded-from-the-saved-backend-labelconfig-editable-in-the-ui-persisted-back-to-the-backend-on-save-and-applied-to-cpcl-printing-not-preview-only",
+      "title": "Ensure Label Settings position adjustments (barcodePositionX/Y, textPositionX/Y, barcodeHeight, barcodeWidthScale, horizontalSpacing, and any gap/spacing controls) are loaded from the saved backend LabelConfig, editable in the UI, persisted back to the backend on Save, and applied to CPCL printing (not preview-only).",
+      "reqIds": [
+        "REQ-10"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-the-unified-layout-computation-to-correctly-respect-user-configured-text-positioning-when-centering-is-disabled-and-keep-title-barcode-text-x-calculations-consistent-between-preview-and-cpcl-avoid-preview-only-text-width-approximations-that-cause-drift",
+      "title": "Update the unified layout computation to correctly respect user-configured text positioning when centering is disabled, and keep title/barcode/text X calculations consistent between preview and CPCL (avoid preview-only text width approximations that cause drift).",
+      "reqIds": [
+        "REQ-11"
       ],
       "version": 1
     }

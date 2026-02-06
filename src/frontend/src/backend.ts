@@ -148,12 +148,14 @@ export interface backendInterface {
     clearPrintHistory(): Promise<void>;
     getAllErrorLogs(): Promise<Array<ErrorLog>>;
     getAllLabelConfigs(): Promise<Array<LabelConfig>>;
+    getAllLabelConfigsPreview(): Promise<Array<LabelConfig>>;
     getAllPrintRecords(): Promise<Array<PrintRecord>>;
     getAllPrinters(): Promise<Array<Printer>>;
     getAllTitleMappings(): Promise<Array<TitleMapping>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getLabelConfig(name: string): Promise<LabelConfig>;
+    getLabelConfigPreview(name: string): Promise<LabelConfig>;
     getNewDualLabelCount(): Promise<bigint>;
     getPrefixes(): Promise<Array<string>>;
     getPrinter(name: string): Promise<Printer>;
@@ -345,6 +347,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getAllLabelConfigsPreview(): Promise<Array<LabelConfig>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllLabelConfigsPreview();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllLabelConfigsPreview();
+            return result;
+        }
+    }
     async getAllPrintRecords(): Promise<Array<PrintRecord>> {
         if (this.processError) {
             try {
@@ -426,6 +442,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.getLabelConfig(arg0);
+            return result;
+        }
+    }
+    async getLabelConfigPreview(arg0: string): Promise<LabelConfig> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getLabelConfigPreview(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getLabelConfigPreview(arg0);
             return result;
         }
     }
