@@ -1,0 +1,392 @@
+{
+  "schemaVersion": "1.0.0",
+  "projectStateVersion": 67,
+  "summary": "Make Some Double!! is a tablet-friendly barcode scanning and label printing web app backed by an Internet Computer (Motoko) canister. The frontend provides four main tabs (Scan & Print, Label Settings, Devices, Diagnostics) and a password-based login screen. After authentication, users can manage printers (logical connections), configure label parameters and validation prefixes, scan two serial numbers to create a combined print record, track counters (notably for “New Dual (72V)” labels), and review/export print history and error logs. The backend canister stores user profiles, label configs, printer records, print history, error logs, prefix rules, and title mappings, and enforces a password-authenticated session per caller principal.",
+  "architectural_notes": [
+    "Frontend is a React + TypeScript SPA with a dark, touch-optimized UI (Tailwind + shadcn/ui components, lucide-react icons).",
+    "Data access is centralized through @tanstack/react-query hooks (queries/mutations) with cache invalidation on success and an actor lifecycle managed via a dedicated useActor hook.",
+    "Backend integration uses a generated canister actor (createActorWithConfig) and supports both anonymous and authenticated identities via Internet Identity (AuthClient), though the app’s primary gate is a password login UI stored in sessionStorage.",
+    "Backend canister is written in Motoko using mo:core Map/List for in-memory state; authorization is enforced via a password-authenticated session check (per-caller Map<Principal,Bool>) and includes an additional role-based access-control mixin (admin/user/guest).",
+    "Label preview rendering is done via HTML canvas with explicit 300-DPI scaling and devicePixelRatio compensation; a simple in-app Code128B encoder/pattern renderer is included for preview.",
+    "Auxiliary device features include a Wake Lock hook to keep the tablet screen awake and a camera + QR scanner hook (jsQR loaded at runtime from CDN).",
+    "URL/session secret handling utilities support extracting sensitive tokens from hash fragments and clearing them from the address bar after capture.",
+    "A reusable build-template was added (Dockerfile + icp.yaml + canister.yaml + deploy script + template frontend/backend package configs) to support consistent builds and IC deployments of both backend canister and frontend assets.",
+    "Authorization/authentication modules (MixinAuthorization/access-control/main) were revised to make the password-authenticated session + RBAC initialization more robust, and frontend auth/actor/query plumbing was updated accordingly (including improved IC error handling utilities).",
+    "Printing architecture now includes dedicated React contexts for print protocol selection (PrintProtocolContext) and USB printer integration (UsbPrinterContext), with supporting WebUSB typings and CPCL template utilities."
+  ],
+  "known_issues": [
+    "Backend authentication uses a hardcoded password (\"swh1400\") in backend/main.mo; this is insecure and not configurable at runtime.",
+    "Backend session state (authenticatedSessions) and other app state are not declared as stable variables; state will be lost on canister upgrade/reinstall.",
+    "Frontend authentication persistence is sessionStorage-based only; it is not tied to the backend’s session/authenticatedSessions, so the UI may think it’s authenticated while backend calls can still trap if backend session expired/changed.",
+    "Devices tab does not perform real USB/Bluetooth discovery/printing; it just creates/updates printer records and marks them connected in backend state.",
+    "Scan & Print always logs labelType as \"Dual (55V)\" and increments the “New Dual (72V)” counter regardless of the scanned prefix; triLabels is never incremented and batchMode is currently unused.",
+    "LabelSettings exposes barcode type options (QR, EAN13) and orientation settings, but the preview renderer only implements a Code128B-style barcode and orientation is not applied.",
+    "Sound settings UI (upload custom sounds, storage) is present but not implemented; Audio elements are created with no sources and uploads have no handlers.",
+    "Diagnostics ‘Clear’ action is a placeholder (toast only) despite backend endpoints existing (clearPrintHistory/clearErrorLogs/resetAllCounters).",
+    "usePrintHistory/useErrorLogs sorting uses Number(b.timestamp - a.timestamp) where timestamps likely deserialize as BigInt; conversion can be lossy for large values and may cause runtime/type issues depending on generated types.",
+    "withTimeout in frontend uses NodeJS.Timeout typing; in a browser build, setTimeout returns a number—this can cause TS type friction depending on tsconfig libs."
+  ],
+  "isFixRequest": true,
+  "existing_features": [
+    {
+      "id": "IF-1",
+      "title": "Password-based login and session gating",
+      "synonyms": [
+        "Password authentication",
+        "Login screen"
+      ],
+      "description": "Frontend LoginScreen authenticates by calling backend.authenticate(password) and stores an authenticated flag in sessionStorage for the SPA session. Backend tracks authenticated sessions per caller principal and enforces requirePasswordAuth on protected methods.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-2",
+      "title": "Access control roles (admin/user/guest) via mixin",
+      "synonyms": [
+        "RBAC",
+        "Admin role assignment"
+      ],
+      "description": "Backend includes a MixinAuthorization over an AccessControl state. It supports initializing roles using an environment-provided CAFFEINE_ADMIN_TOKEN plus a user-provided secret, querying caller role/admin status, and admin-only role assignment.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-3",
+      "title": "Actor initialization with Internet Identity support",
+      "synonyms": [
+        "IC actor management",
+        "useActor"
+      ],
+      "description": "Frontend creates a canister actor via createActorWithConfig. If Internet Identity is available, it uses the delegated identity and invokes _initializeAccessControlWithSecret using a secret token read from the URL hash (caffeineAdminToken). On identity change it invalidates/refetches non-actor React Query caches.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-4",
+      "title": "Centralized backend API hooks using React Query",
+      "synonyms": [
+        "useQueries",
+        "Query/mutation layer"
+      ],
+      "description": "Frontend provides typed hooks for authentication, printers, label configs, print history, error logs, counters, prefix management/validation, and title mappings, with cache invalidation on successful mutations and optional timeout wrapping for authentication.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-5",
+      "title": "Printer record management",
+      "synonyms": [
+        "Devices tab printers",
+        "Printer status"
+      ],
+      "description": "Backend supports adding printers and updating status, and listing all printers. Frontend Devices page provides connect actions for a logical “USB Printer” and “Bluetooth Printer” and lists connected printers.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-6",
+      "title": "Label configuration persistence",
+      "synonyms": [
+        "Label configs",
+        "Save label settings"
+      ],
+      "description": "Backend stores named label configurations (width/height/margin/barcodeType/customText/textSize/font). Frontend LabelSettings saves a default config through useSaveLabelConfig.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-7",
+      "title": "Label preview rendering (dual barcode layout)",
+      "synonyms": [
+        "Canvas label preview",
+        "Code128 preview"
+      ],
+      "description": "LabelSettings renders a live canvas preview of a dual-barcode label using 300-DPI scaling and a simple Code128B encoder/pattern renderer. It supports toggles and controls for title visibility/position, barcode sizes/positions, and text label positioning.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-8",
+      "title": "Import/export label settings as JSON file",
+      "synonyms": [
+        "Configuration management",
+        "Settings import/export"
+      ],
+      "description": "LabelSettings can export the current UI configuration to a downloadable JSON file and import settings from a JSON file, including backward compatibility for old single-prefix config keys.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-9",
+      "title": "Prefix rule management and barcode validation",
+      "synonyms": [
+        "Validation prefixes",
+        "Prefix whitelist"
+      ],
+      "description": "Backend stores a list of allowed prefixes and provides set/get and validateBarcode(barcode). Frontend LabelSettings edits prefixes (comma or newline separated) and Scan & Print validates scans via backend (falling back to permissive behavior if validation fails).",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-10",
+      "title": "Title mapping by serial prefix with default initialization",
+      "synonyms": [
+        "Title rules",
+        "Prefix-to-title mapping"
+      ],
+      "description": "Backend stores prefix→title mappings and provides initialization of defaults (55V→Dual Band, 72V→New Version Dual Band, 55Y→Tri Band), as well as CRUD endpoints. Frontend fetches mappings and initializes defaults on first load, using mappings to display a title in the label preview.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-11",
+      "title": "Scan two serial numbers and create print records",
+      "synonyms": [
+        "Scan & Print workflow",
+        "Dual scan printing"
+      ],
+      "description": "Frontend ScanPrint collects two scanned serials, provides valid/invalid UI feedback, prevents duplicates within the current session, and on success records a print action via backend.addPrintRecord(serialNumber,labelType,printer). It also logs errors via backend.addErrorLog.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-12",
+      "title": "Print history and error log tracking",
+      "synonyms": [
+        "Diagnostics data",
+        "Audit trail"
+      ],
+      "description": "Backend maintains append-only arrays for printHistory and errorLogs. Frontend Diagnostics displays totals and recent entries, and fetches/sorts records via React Query hooks.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-13",
+      "title": "Diagnostics export to CSV",
+      "synonyms": [
+        "Export diagnostics",
+        "Print history export"
+      ],
+      "description": "Frontend Diagnostics exports print history to a CSV file including date/time/serial/label type/printer.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-14",
+      "title": "Counter tracking for “New Dual (72V)” labels",
+      "synonyms": [
+        "72V counter",
+        "Dual label count"
+      ],
+      "description": "Backend maintains a counter in a Map keyed by \"newDual72VLabels\" and provides increment/get/reset. Frontend displays the counter and increments it after printing.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-15",
+      "title": "Wake Lock support for tablet operation",
+      "synonyms": [
+        "Keep screen awake",
+        "useWakeLock"
+      ],
+      "description": "Frontend uses the Wake Lock API to request a screen wake lock on mount, shows status in the header, and attempts reacquisition on visibility changes.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-16",
+      "title": "Camera and QR scanning utilities",
+      "synonyms": [
+        "useCamera",
+        "useQRScanner"
+      ],
+      "description": "Frontend provides a camera hook for starting/stopping/switching camera and capturing frames, plus a QR scanner hook that loads jsQR from a CDN and scans frames on an interval, tracking recent results.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-17",
+      "title": "URL hash secret extraction and persistence",
+      "synonyms": [
+        "Admin token handling",
+        "urlParams utilities"
+      ],
+      "description": "Frontend utilities support extracting sensitive parameters from the URL hash (not query), persisting them in sessionStorage, and removing them from the address bar to reduce leakage.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-18",
+      "title": "Production-ready build/deployment template for IC (frontend + backend)",
+      "synonyms": [
+        "Build template",
+        "Deployment scripts",
+        "ICP CLI/GitHub export template"
+      ],
+      "description": "Repository now includes a build-template project skeleton (Dockerfile, icp.yaml, canister.yaml files, deploy.sh, and frontend/backend template manifests) intended to support repeatable building and deployment of the app (frontend assets + backend canister) outside of an expiring draft environment.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-19",
+      "title": "Improved authentication/authorization flow and error handling",
+      "synonyms": [
+        "Login reliability fixes",
+        "Anonymous principal auth handling",
+        "RBAC initialization fixes"
+      ],
+      "description": "Backend authorization/authentication logic was updated (MixinAuthorization/access-control/main.mo) to improve reliability of password authentication and role/access-control initialization, addressing prior failure modes (e.g., anonymous-principal authentication path and unintended admin-only role assignment errors). Frontend auth/actor/query hooks and IC error utilities were also updated to better handle and surface authentication/IC canister errors.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-20",
+      "title": "CPCL label template generation utilities",
+      "synonyms": [
+        "CPCL templates",
+        "cpclTemplates"
+      ],
+      "description": "Frontend includes CPCL template helpers for generating printer-ready label commands (used by printing-related UI/contexts).",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-21",
+      "title": "Print protocol and WebUSB printer context scaffolding",
+      "synonyms": [
+        "PrintProtocolContext",
+        "UsbPrinterContext",
+        "WebUSB printing"
+      ],
+      "description": "Frontend introduces context providers for print protocol selection/routing and USB printer integration scaffolding, including WebUSB type declarations and related wiring in the app shell.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-22",
+      "title": "Deployment documentation for frontend",
+      "synonyms": [
+        "DEPLOYMENT.md",
+        "Frontend deploy guide"
+      ],
+      "description": "Repository adds/updates frontend deployment documentation detailing how to deploy the SPA assets in the intended IC deployment setup.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-23",
+      "title": "Scanner-only keyboard input helper",
+      "synonyms": [
+        "scannerOnlyInput",
+        "HID barcode scanner input"
+      ],
+      "description": "Frontend includes a scannerOnlyInput utility to capture/interpret rapid keyboard-emitted characters from a barcode scanner as a single scan token, helping distinguish scanner input from manual typing.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "feature-update-cpcl-print-generation-so-barcode-s-and-serial-number-text-are-horizontally-centered-on-the-label-and-never-overlap-with-clear-vertical-spacing-between-each-barcode-and-its-serial-text-matching-the-physical-reference-label",
+      "title": "Update CPCL print generation so barcode(s) and serial number text are horizontally centered on the label and never overlap, with clear vertical spacing between each barcode and its serial text (matching the physical reference label).",
+      "reqIds": [
+        "REQ-2"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-make-label-settings-adjustments-for-barcode-text-positions-barcode-height-width-scale-and-spacing-centering-affect-the-actual-cpcl-label-print-output-not-preview-only-including-persisting-these-layout-settings-and-using-them-when-generating-cpcl-commands",
+      "title": "Make Label Settings adjustments for barcode/text positions, barcode height/width scale, and spacing/centering affect the actual CPCL label print output (not preview only), including persisting these layout settings and using them when generating CPCL commands.",
+      "reqIds": [
+        "REQ-3"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-prefix-to-title-mapping-so-each-serial-prefix-resolves-to-the-correct-label-title-55v-dual-band-55y-tri-band-72v-new-version-dual-band-ensure-the-app-no-longer-shows-the-same-title-for-different-prefixes",
+      "title": "Fix prefix-to-title mapping so each serial prefix resolves to the correct label title: \"55V\" → \"Dual Band\", \"55Y\" → \"Tri Band\", \"72V\" → \"New Version Dual Band\"; ensure the app no longer shows the same title for different prefixes.",
+      "reqIds": [
+        "REQ-4"
+      ],
+      "version": 1
+    }
+  ],
+  "new_feature_requests": [
+    {
+      "id": "AR-1",
+      "summary": "Auto-print CPCL label after 2 unique serial scans (48x30mm, stacked barcodes + serial text), with duplicate/prefix validation errors and no manual Print action",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-2",
+      "summary": "Configurable sound effects (good scan, bad scan/wrong prefix, duplicate scan, label printed) adjustable in Label Settings",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-3",
+      "summary": "Admin can configure multiple accepted serial prefixes in Label Settings; scanning validates against all configured prefixes",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-4",
+      "summary": "Improve label preview to match printed output more realistically (accurate barcode look, proportions), support larger default preview size while keeping correct 48x30mm ratio",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-5",
+      "summary": "Add dynamic label title (top center) based on serial prefix: 55V→Dual Band, 72V→New Version Dual Band, 55Y→Tri Band",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-6",
+      "summary": "Main screen counters: show \"New Dual (72V) Labels\" text exactly; rename Tri counter from 55V to 55Y; place/style counters to match reference photos",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-7",
+      "summary": "Scan input UI feedback: serial number boxes show green border on good scan and red border on bad/duplicate scan",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-8",
+      "summary": "Enhance print history to track/display timestamps for each scan (including bad scan attempts) and label print events per barcode/serial, tablet-friendly formatting",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-9",
+      "summary": "Remove Batch Mode from the app UI/logic",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-10",
+      "summary": "Create a live/production version deployment (not expiring draft)",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-11",
+      "summary": "Create a live/production deployment of the current app (backend canister + frontend assets) that is not an expiring draft, so the user can access a stable “live version”.",
+      "reqIds": [
+        "REQ-1"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "AR-12",
+      "summary": "Ensure label settings (barcode/serial positions, spacing, centering) affect the actual printed CPCL output; prevent barcode/serial overlap and keep content centered",
+      "reqIds": [],
+      "status": "pending"
+    }
+  ],
+  "gameProjectType": "none",
+  "projectName": "Make Some Double!!",
+  "clarification_mode": "instant",
+  "clarification_rounds": 0
+}

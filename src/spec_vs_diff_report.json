@@ -1,0 +1,55 @@
+{
+  "kind": "spec_vs_diff_report",
+  "version": "1.0",
+  "generatedAt": "2026-02-06T06:55:41.410Z",
+  "summary": "Diff adds persistent layout fields to backend LabelConfig (with a migration), expands CPCL template utilities with centering/spacing helpers and layout constants, and updates Scan & Print / Label Settings pages to reference title-mapping initialization and CPCL template utilities. However, the provided diff excerpts are truncated and do not show enough end-to-end wiring to confirm that saved Label Settings fully round-trip and are applied to generated CPCL, nor that the required default prefix→title mappings are enforced.",
+  "missing_requirements": [
+    {
+      "id": "REQ-2",
+      "requirement": "Update CPCL print generation so barcode(s) and serial number text are horizontally centered on the label and never overlap, with clear vertical spacing between each barcode and its serial text, and consistent spacing between barcode blocks.",
+      "reason": "While cpclTemplates.ts introduces centered X calculations and spacing-related options/constants, the actual generateDualSerialCpcl implementation is truncated, so the diff summary does not provide evidence that the final CPCL commands (1) center both barcodes and both text lines and (2) compute Y positions robustly to prevent overlap at any supported barcode height.",
+      "evidence": [
+        "frontend/src/utils/cpclTemplates.ts (generateDualSerialCpcl truncated; only helper functions/constants shown)"
+      ]
+    },
+    {
+      "id": "REQ-3",
+      "requirement": "Make Label Settings adjustments for barcode/text positions, barcode height/width scale, and spacing/centering affect the actual CPCL label print output (not preview only), including persisting these layout settings and using them when generating CPCL commands.",
+      "reason": "Backend LabelConfig adds fields and a migration is added, but the diff excerpt of backend/main.mo is truncated before showing updated save/load methods and stable state definitions. On the frontend, LabelSettings and ScanPrint are truncated before showing (a) the exact controls mapped to persisted config, and (b) that Scan & Print passes the persisted layout values into CPCL generation. Therefore round-trip persistence and application to print output cannot be confirmed from the provided diff summary.",
+      "evidence": [
+        "backend/main.mo (LabelConfig extended, but save/get usage and stable var upgrades not shown due to truncation)",
+        "backend/migration.mo (adds new fields with default zeros/false, but does not prove frontend uses them for printing)",
+        "frontend/src/pages/LabelSettings.tsx (truncated before showing controls-to-save mapping)",
+        "frontend/src/pages/ScanPrint.tsx (truncated before showing generateDualSerialCpcl called with persisted layout parameters)"
+      ]
+    },
+    {
+      "id": "REQ-4",
+      "requirement": "Fix prefix-to-title mapping so 55V→Dual Band, 55Y→Tri Band, 72V→New Version Dual Band; initialize defaults exactly as above when mappings are empty.",
+      "reason": "ScanPrint.tsx shows logic to initialize default title mappings when the list is empty, but the diff summary does not show the actual default values being set anywhere (frontend or backend). backend/main.mo snippet includes titleMappingsList but does not show initialization logic or a mapping table. Therefore the exact required defaults and correct differentiation between prefixes is not evidenced.",
+      "evidence": [
+        "frontend/src/pages/ScanPrint.tsx (shows init when empty, but not the default mapping values)",
+        "backend/main.mo (titleMappingsList present, but default initialization/mapping logic not shown due to truncation)"
+      ]
+    }
+  ],
+  "hallucinated_features": [
+    {
+      "description": "Large embedded Code128B encoding/pattern tables and preview-focused barcode rendering logic added to LabelSettings beyond what is necessary to center/space CPCL print output.",
+      "reason": "BuildRequest focuses on CPCL print generation centering/spacing, persistence of layout settings for print output, and prefix→title mapping. The diff shows extensive CODE128 pattern/encoder code inside LabelSettings.tsx which appears oriented toward preview rendering rather than the requested CPCL output/persistence requirements.",
+      "evidence": [
+        "frontend/src/pages/LabelSettings.tsx (CODE128_PATTERNS array and encodeCode128B implementation)"
+      ]
+    }
+  ],
+  "confidence": 0.62,
+  "changed_files": [
+    "backend/main.mo",
+    "backend/migration.mo",
+    "frontend-file-summaries.txt",
+    "frontend/src/pages/LabelSettings.tsx",
+    "frontend/src/pages/ScanPrint.tsx",
+    "frontend/src/utils/cpclTemplates.ts",
+    "project_state.json"
+  ]
+}

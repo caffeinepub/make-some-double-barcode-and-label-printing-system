@@ -1,0 +1,75 @@
+{
+  "kind": "build_request",
+  "title": "Center CPCL label content, prevent overlap, and fix prefix-based titles",
+  "priority": "normal",
+  "requirements": [
+    {
+      "id": "REQ-2",
+      "text": "Update CPCL print generation so barcode(s) and serial number text are horizontally centered on the label and never overlap, with clear vertical spacing between each barcode and its serial text (matching the physical reference label).",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "recent-messages-6"
+        ],
+        "quotes": [
+          "Just make sure barcode and serial number is in centre, and there is spacing between each barcode and serial so they not going on top of each other."
+        ]
+      },
+      "acceptanceCriteria": [
+        "Printing a dual-serial CPCL label produces two barcodes and two serial text lines that are centered horizontally on the label.",
+        "There is consistent vertical spacing between barcode #1 and serial text #1, and between barcode #2 and serial text #2, with no overlap at any supported barcode height.",
+        "There is consistent vertical spacing between the two barcode blocks (barcode+text) so the second block does not collide with the first."
+      ]
+    },
+    {
+      "id": "REQ-3",
+      "text": "Make Label Settings adjustments for barcode/text positions, barcode height/width scale, and spacing/centering affect the actual CPCL label print output (not preview only), including persisting these layout settings and using them when generating CPCL commands.",
+      "target": "both",
+      "source": {
+        "messageIds": [
+          "recent-messages-6"
+        ],
+        "quotes": [
+          "Make sure when I adjusting settings for barcode position etc is making affect on label print out."
+        ]
+      },
+      "acceptanceCriteria": [
+        "Label Settings includes controls for barcode X/Y, text Y (and any needed spacing parameters) that map to persisted configuration.",
+        "After saving Label Settings, printing from Scan & Print uses the saved layout values in the generated CPCL (verified by visible position changes on the printed label).",
+        "A saved configuration round-trips correctly (save → reload app → print uses the same layout)."
+      ]
+    },
+    {
+      "id": "REQ-4",
+      "text": "Fix prefix-to-title mapping so each serial prefix resolves to the correct label title: \"55V\" → \"Dual Band\", \"55Y\" → \"Tri Band\", \"72V\" → \"New Version Dual Band\"; ensure the app no longer shows the same title for different prefixes.",
+      "target": "both",
+      "source": {
+        "messageIds": [
+          "recent-messages-6"
+        ],
+        "quotes": [
+          "At some reason for each prefix is giving same title. Should be: \"55V\" Dual Band, \"55Y\" Tri Band, \"72V\" New Version Dual Band"
+        ]
+      },
+      "acceptanceCriteria": [
+        "When scanning/printing with a serial beginning with 55V, the printed label title is \"Dual Band\".",
+        "When scanning/printing with a serial beginning with 55Y, the printed label title is \"Tri Band\".",
+        "When scanning/printing with a serial beginning with 72V, the printed label title is \"New Version Dual Band\".",
+        "If title mappings are uninitialized/empty, the system initializes defaults exactly as above."
+      ]
+    }
+  ],
+  "constraints": [
+    "Backend must remain a single Motoko actor in backend/main.mo; add migration.mo only if stable state upgrades are required.",
+    "Do not edit any files under frontend/src/components/ui or any frontend immutablePaths listed in SYSTEM_CONTEXT."
+  ],
+  "nonGoals": [
+    "Implement new barcode symbologies beyond the existing CPCL Code128 workflow.",
+    "Add third-party services or external databases for configuration storage.",
+    "Change authentication mechanisms or password handling in this change set."
+  ],
+  "imageRequirements": {
+    "required": [],
+    "edits": []
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "kind": "feature_evidence_report",
+  "features": [
+    {
+      "featureId": "feature-update-cpcl-print-generation-so-barcode-s-and-serial-number-text-are-horizontally-centered-on-the-label-and-never-overlap-with-clear-vertical-spacing-between-each-barcode-and-its-serial-text-matching-the-physical-reference-label",
+      "featureTitle": "Update CPCL print generation so barcode(s) and serial number text are horizontally centered on the label and never overlap, with clear vertical spacing between each barcode and its serial text (matching the physical reference label).",
+      "files": [
+        "frontend/src/utils/cpclTemplates.ts"
+      ],
+      "components": [
+        "camera@1.0.0",
+        "qr-code@1.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "authorization@4.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-2"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-make-label-settings-adjustments-for-barcode-text-positions-barcode-height-width-scale-and-spacing-centering-affect-the-actual-cpcl-label-print-output-not-preview-only-including-persisting-these-layout-settings-and-using-them-when-generating-cpcl-commands",
+      "featureTitle": "Make Label Settings adjustments for barcode/text positions, barcode height/width scale, and spacing/centering affect the actual CPCL label print output (not preview only), including persisting these layout settings and using them when generating CPCL commands.",
+      "files": [
+        "frontend/src/pages/LabelSettings.tsx",
+        "frontend/src/pages/ScanPrint.tsx",
+        "frontend/src/utils/cpclTemplates.ts"
+      ],
+      "components": [
+        "camera@1.0.0",
+        "qr-code@1.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "authorization@4.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-3"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-fix-prefix-to-title-mapping-so-each-serial-prefix-resolves-to-the-correct-label-title-55v-dual-band-55y-tri-band-72v-new-version-dual-band-ensure-the-app-no-longer-shows-the-same-title-for-different-prefixes",
+      "featureTitle": "Fix prefix-to-title mapping so each serial prefix resolves to the correct label title: \"55V\" → \"Dual Band\", \"55Y\" → \"Tri Band\", \"72V\" → \"New Version Dual Band\"; ensure the app no longer shows the same title for different prefixes.",
+      "files": [
+        "frontend/src/pages/LabelSettings.tsx",
+        "frontend/src/pages/ScanPrint.tsx"
+      ],
+      "components": [
+        "camera@1.0.0",
+        "qr-code@1.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "authorization@4.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-4"
+      ],
+      "confidence": "high"
+    }
+  ]
+}

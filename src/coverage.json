@@ -1,0 +1,75 @@
+{
+  "kind": "coverage_report",
+  "version": "1.0",
+  "generatedAt": "2026-02-06T06:55:41.413Z",
+  "sources": {
+    "buildRequest": true,
+    "implementationPlan": true
+  },
+  "requirements": {
+    "total": 3,
+    "implemented": 3,
+    "items": [
+      {
+        "id": "REQ-2",
+        "summary": "Update CPCL print generation so barcode(s) and serial number text are horizontally centered on the label and never overlap, with clear vertical spacing between each barcode and its serial text (matching the physical reference label).",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/utils/cpclTemplates.ts"
+        ],
+        "matchedFiles": [
+          "frontend/src/utils/cpclTemplates.ts"
+        ]
+      },
+      {
+        "id": "REQ-3",
+        "summary": "Make Label Settings adjustments for barcode/text positions, barcode height/width scale, and spacing/centering affect the actual CPCL label print output (not preview only), including persisting these layout settings and using them when generating CPCL commands.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/hooks/useQueries.ts",
+          "frontend/src/pages/LabelSettings.tsx",
+          "frontend/src/pages/ScanPrint.tsx",
+          "frontend/src/utils/cpclTemplates.ts"
+        ],
+        "matchedFiles": [
+          "frontend/src/pages/LabelSettings.tsx",
+          "frontend/src/pages/ScanPrint.tsx",
+          "frontend/src/utils/cpclTemplates.ts"
+        ]
+      },
+      {
+        "id": "REQ-4",
+        "summary": "Fix prefix-to-title mapping so each serial prefix resolves to the correct label title: \"55V\" → \"Dual Band\", \"55Y\" → \"Tri Band\", \"72V\" → \"New Version Dual Band\"; ensure the app no longer shows the same title for different prefixes.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/pages/ScanPrint.tsx",
+          "frontend/src/pages/LabelSettings.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/pages/ScanPrint.tsx",
+          "frontend/src/pages/LabelSettings.tsx"
+        ]
+      }
+    ]
+  },
+  "changedFiles": [
+    "backend/main.mo",
+    "backend/migration.mo",
+    "build-request.json",
+    "caffeine.lock.json",
+    "feature_evidence.json",
+    "frontend-file-summaries.txt",
+    "frontend-implementation-plan.json",
+    "frontend/src/backend.d.ts",
+    "frontend/src/backend.ts",
+    "frontend/src/declarations/backend.did.d.ts",
+    "frontend/src/declarations/backend.did.js",
+    "frontend/src/pages/LabelSettings.tsx",
+    "frontend/src/pages/ScanPrint.tsx",
+    "frontend/src/utils/cpclTemplates.ts",
+    "project_state.json",
+    "scratch/component-selection.json",
+    "spec.md",
+    "spec_vs_diff_report.json"
+  ]
+}

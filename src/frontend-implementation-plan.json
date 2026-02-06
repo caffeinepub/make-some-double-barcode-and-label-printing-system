@@ -1,0 +1,76 @@
+{
+  "kind": "implementation_plan",
+  "version": "1.0",
+  "title": "CPCL layout centering + persisted settings applied to print output + correct prefix title mapping",
+  "requirements": [
+    {
+      "id": "REQ-2",
+      "summary": "Center dual-serial CPCL barcode blocks and enforce non-overlapping vertical spacing between each barcode and its serial text and between blocks.",
+      "acceptanceCriteria": [
+        "Printing a dual-serial CPCL label produces two barcodes and two serial text lines that are centered horizontally on the label.",
+        "There is consistent vertical spacing between barcode #1 and serial text #1, and between barcode #2 and serial text #2, with no overlap at any supported barcode height.",
+        "There is consistent vertical spacing between the two barcode blocks (barcode+text) so the second block does not collide with the first."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/utils/cpclTemplates.ts",
+          "operation": "modify",
+          "description": "Update dual-serial CPCL generation to compute centered X positions for barcodes and serial text using label width and the effective barcode module width; refactor Y layout to be derived from barcodeHeight + configurable gaps so text never overlaps barcode and the second block never collides with the first (even at larger barcode heights)."
+        }
+      ]
+    },
+    {
+      "id": "REQ-3",
+      "summary": "Make Label Settings layout controls persist and drive actual CPCL print generation (not preview-only), including reload round-trip.",
+      "acceptanceCriteria": [
+        "Label Settings includes controls for barcode X/Y, text Y (and any needed spacing parameters) that map to persisted configuration.",
+        "After saving Label Settings, printing from Scan & Print uses the saved layout values in the generated CPCL (verified by visible position changes on the printed label).",
+        "A saved configuration round-trips correctly (save → reload app → print uses the same layout)."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Add/adjust React Query hooks to load a specific saved LabelConfig (e.g., the 'default' config) and ensure the query cache is invalidated/refetched after saving so Scan & Print always uses the latest persisted layout values."
+        },
+        {
+          "path": "frontend/src/pages/LabelSettings.tsx",
+          "operation": "modify",
+          "description": "Extend Label Settings to persist print-relevant layout parameters (barcode X/Y, text positioning, centerContents toggle, barcodeHeight, barcodeWidthScale, and vertical spacing parameters such as text gap and inter-block spacing) into the saved LabelConfig (convert mm UI values to dots consistently)."
+        },
+        {
+          "path": "frontend/src/pages/ScanPrint.tsx",
+          "operation": "modify",
+          "description": "Load the persisted LabelConfig and pass its values into CPCL generation so the physical print output reflects saved settings (dimensions, height/width scale, centering behavior, and spacing), including after an app reload."
+        },
+        {
+          "path": "frontend/src/utils/cpclTemplates.ts",
+          "operation": "modify",
+          "description": "Accept an optional persisted LabelConfig (or a derived layout options object) when generating CPCL, and map its values (width/height, barcodeHeight, barcodeWidthScale, centerContents, X/Y positions, and spacing) into the computed CPCL commands used by Scan & Print."
+        }
+      ]
+    },
+    {
+      "id": "REQ-4",
+      "summary": "Ensure serial prefix resolves to the correct label title (55V→Dual Band, 55Y→Tri Band, 72V→New Version Dual Band) and initialize defaults when mappings are empty.",
+      "acceptanceCriteria": [
+        "When scanning/printing with a serial beginning with 55V, the printed label title is \"Dual Band\".",
+        "When scanning/printing with a serial beginning with 55Y, the printed label title is \"Tri Band\".",
+        "When scanning/printing with a serial beginning with 72V, the printed label title is \"New Version Dual Band\".",
+        "If title mappings are uninitialized/empty, the system initializes defaults exactly as above."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/pages/ScanPrint.tsx",
+          "operation": "modify",
+          "description": "Fix title lookup to use the serial prefix (e.g., first 3 characters) rather than passing the full serial to getTitleByPrefix; ensure defaults are initialized when mappings are empty by triggering initializeDefaultTitles on first use (or when mappings query returns empty) before printing."
+        },
+        {
+          "path": "frontend/src/pages/LabelSettings.tsx",
+          "operation": "modify",
+          "description": "Harden default title initialization flow so it only runs when mappings are truly empty/uninitialized (and does not depend on stale query state), ensuring default prefix/title mappings exist for printing."
+        }
+      ]
+    }
+  ]
+}
