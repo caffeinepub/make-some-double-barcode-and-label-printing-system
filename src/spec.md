@@ -1,14 +1,11 @@
 # Specification
 
 ## Summary
-**Goal:** Make the Label Settings preview match the CPCL printed output 1:1 by unifying layout calculations, and ensure saved label layout settings stay synchronized between UI, backend persistence, and printing.
+**Goal:** Add persistent, per-serial-prefix label counters (55V/55Y/72V) and a configurable serial-number text size that applies consistently to label preview and printing.
 
 **Planned changes:**
-- Create a single shared layout computation (in dots) that is used by both the Settings preview renderer and the CPCL command generator so centering, X/Y positions, barcode scaling, and spacing match exactly.
-- Fix preview rendering stability so dot-to-pixel scaling does not accumulate distortion across repeated adjustments/re-renders.
-- Correct centering behavior so, when enabled, both barcode blocks are horizontally centered consistently in both preview and printed output.
-- Enforce minimum non-overlapping gaps: between each barcode and its serial-number text, and between the first and second barcode blocks; clamp effective spacing when user settings would cause overlap and reflect the clamped layout in the preview.
-- Load all label layout-related controls from the saved backend LabelConfig on page load, allow editing, persist on Save, and ensure CPCL printing uses the newly saved values (not preview-only).
-- When centering is disabled, respect user-configured X/Y positioning for barcode/text in both preview and CPCL output, keeping text/title/barcode X calculations consistent (avoid preview-only approximations that cause drift).
+- Backend: Store and expose three separate persistent counters for label prints by serial prefix: 55V (Dual Band), 55Y (Tri Band), 72V (New Dual Band); support fetching each value, incrementing based on prefix, and resetting all counters.
+- Frontend (Scan & Print): Display three separate counter tiles/cards (“Dual Band Labels”, “Tri Band Labels”, “New Dual Band Labels”) sourced from backend values; increment the correct counter after a successful print based on the scanned serial’s first 3 characters and keep values correct after refresh.
+- Frontend (Label Settings + printing): Add a “Serial Text Size” control saved with LabelConfig (using the existing `textSize` field); apply the configured size to both the label preview renderer and CPCL output for the serial-number text, with a sensible default for missing/zero values.
 
-**User-visible outcome:** Adjusting label layout settings updates the on-screen preview and the printed CPCL label identically, with reliable centering/spacing, no preview scaling drift, and saved settings that apply to future prints.
+**User-visible outcome:** Users see three separate label counters (Dual Band / Tri Band / New Dual Band) that persist across reloads and increment based on the scanned serial prefix, and they can adjust “Serial Text Size” so the serial number appears larger/smaller in both preview and the printed label.

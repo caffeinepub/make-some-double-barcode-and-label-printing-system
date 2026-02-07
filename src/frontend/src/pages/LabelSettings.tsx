@@ -13,6 +13,8 @@ import { computeDualSerialLayout, dotsToMm, mmToDots, LABEL_DOTS, DEFAULT_LAYOUT
 import { renderLabelPreview } from '../utils/labelPreviewRenderer';
 import { LabelConfig } from '../backend';
 
+const DEFAULT_TEXT_SIZE = 10;
+
 export function LabelSettings() {
   // Sample serials for preview
   const sampleText1 = '55V10M29F04381';
@@ -40,6 +42,9 @@ export function LabelSettings() {
   );
   const [centerContents, setCenterContents] = useState(
     existingConfig ? existingConfig.centerContents : true
+  );
+  const [serialTextSize, setSerialTextSize] = useState(
+    existingConfig && Number(existingConfig.textSize) > 0 ? Number(existingConfig.textSize) : DEFAULT_TEXT_SIZE
   );
   
   const [zoom, setZoom] = useState(100);
@@ -74,6 +79,7 @@ export function LabelSettings() {
       setTextGap(dotsToMm(Number(existingConfig.textPositionY) - Number(existingConfig.barcodePositionY) - Number(existingConfig.barcodeHeight)));
       setBlockSpacing(dotsToMm(Number(existingConfig.horizontalSpacing)));
       setCenterContents(existingConfig.centerContents);
+      setSerialTextSize(Number(existingConfig.textSize) > 0 ? Number(existingConfig.textSize) : DEFAULT_TEXT_SIZE);
     }
   }, [existingConfig, configsLoading]);
 
@@ -89,7 +95,7 @@ export function LabelSettings() {
       margin: BigInt(0),
       barcodeType: 'CODE128',
       customText: '',
-      textSize: BigInt(10),
+      textSize: BigInt(serialTextSize),
       font: 'Monospace',
       barcodePositionX: BigInt(DEFAULT_LAYOUT.LEFT_MARGIN),
       barcodePositionY: BigInt(DEFAULT_LAYOUT.TOP_MARGIN),
@@ -112,8 +118,8 @@ export function LabelSettings() {
     const layout = computeDualSerialLayout(sampleText1, sampleText2, sampleTitle, config);
 
     // Render using shared preview renderer
-    renderLabelPreview(canvas, layout, sampleText1, sampleText2, sampleTitle, zoom);
-  }, [barcodeHeight, barcodeWidthScale, textGap, blockSpacing, centerContents, zoom]);
+    renderLabelPreview(canvas, layout, sampleText1, sampleText2, sampleTitle, zoom, serialTextSize);
+  }, [barcodeHeight, barcodeWidthScale, textGap, blockSpacing, centerContents, serialTextSize, zoom]);
 
   const handleSaveConfiguration = async () => {
     try {
@@ -152,6 +158,7 @@ export function LabelSettings() {
     setTextGap(dotsToMm(DEFAULT_LAYOUT.TEXT_GAP));
     setBlockSpacing(dotsToMm(DEFAULT_LAYOUT.BLOCK_SPACING));
     setCenterContents(true);
+    setSerialTextSize(DEFAULT_TEXT_SIZE);
     setZoom(100);
     toast.info('Reset to default values');
   };
@@ -320,6 +327,28 @@ export function LabelSettings() {
               />
               <p className="text-xs text-zinc-500">
                 Vertical space between first and second barcode blocks
+              </p>
+            </div>
+
+            {/* Serial Text Size */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="serial-text-size" className="text-white">
+                  Serial Text Size
+                </Label>
+                <span className="text-sm text-zinc-400">{serialTextSize}</span>
+              </div>
+              <Slider
+                id="serial-text-size"
+                min={6}
+                max={16}
+                step={1}
+                value={[serialTextSize]}
+                onValueChange={([value]) => setSerialTextSize(value)}
+                className="w-full"
+              />
+              <p className="text-xs text-zinc-500">
+                Font size for serial number text (affects both preview and print)
               </p>
             </div>
 

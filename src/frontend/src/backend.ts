@@ -146,6 +146,7 @@ export interface backendInterface {
     authenticate(password: string): Promise<boolean>;
     clearErrorLogs(): Promise<void>;
     clearPrintHistory(): Promise<void>;
+    getAllCounters(): Promise<Array<[string, bigint]>>;
     getAllErrorLogs(): Promise<Array<ErrorLog>>;
     getAllLabelConfigs(): Promise<Array<LabelConfig>>;
     getAllLabelConfigsPreview(): Promise<Array<LabelConfig>>;
@@ -156,13 +157,14 @@ export interface backendInterface {
     getCallerUserRole(): Promise<UserRole>;
     getLabelConfig(name: string): Promise<LabelConfig>;
     getLabelConfigPreview(name: string): Promise<LabelConfig>;
-    getNewDualLabelCount(): Promise<bigint>;
+    getLabelCount(labelType: string): Promise<bigint>;
+    getLabelTypeByPrefix(prefix: string): Promise<string | null>;
     getPrefixes(): Promise<Array<string>>;
     getPrinter(name: string): Promise<Printer>;
     getTitleByPrefix(prefix: string): Promise<string | null>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     health(): Promise<boolean>;
-    incrementNewDualLabelCount(): Promise<bigint>;
+    incrementLabelCounter(prefix: string): Promise<bigint>;
     initializeDefaultTitles(): Promise<void>;
     isAuthenticatedQuery(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
@@ -319,6 +321,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getAllCounters(): Promise<Array<[string, bigint]>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllCounters();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllCounters();
+            return result;
+        }
+    }
     async getAllErrorLogs(): Promise<Array<ErrorLog>> {
         if (this.processError) {
             try {
@@ -459,18 +475,32 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getNewDualLabelCount(): Promise<bigint> {
+    async getLabelCount(arg0: string): Promise<bigint> {
         if (this.processError) {
             try {
-                const result = await this.actor.getNewDualLabelCount();
+                const result = await this.actor.getLabelCount(arg0);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.getNewDualLabelCount();
+            const result = await this.actor.getLabelCount(arg0);
             return result;
+        }
+    }
+    async getLabelTypeByPrefix(arg0: string): Promise<string | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getLabelTypeByPrefix(arg0);
+                return from_candid_opt_n7(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getLabelTypeByPrefix(arg0);
+            return from_candid_opt_n7(this._uploadFile, this._downloadFile, result);
         }
     }
     async getPrefixes(): Promise<Array<string>> {
@@ -543,17 +573,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async incrementNewDualLabelCount(): Promise<bigint> {
+    async incrementLabelCounter(arg0: string): Promise<bigint> {
         if (this.processError) {
             try {
-                const result = await this.actor.incrementNewDualLabelCount();
+                const result = await this.actor.incrementLabelCounter(arg0);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.incrementNewDualLabelCount();
+            const result = await this.actor.incrementLabelCounter(arg0);
             return result;
         }
     }

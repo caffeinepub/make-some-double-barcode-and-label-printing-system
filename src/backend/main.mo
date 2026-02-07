@@ -10,13 +10,24 @@ import Runtime "mo:core/Runtime";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
 import Migration "migration";
+
 import MixinAuthorization "authorization/MixinAuthorization";
 
+// Persistent data structures with types
 (with migration = Migration.run)
 actor {
   // Hardcoded password for authentication
   let hardcodedPassword = "swh1400";
-  let v72LabelKey = "newDual72VLabels";
+
+  // Prefix constants
+  let prefixDualBand = "55V";
+  let prefixTriBand = "55Y";
+  let prefixNewDualBand = "72V";
+
+  // Persistent counter keys
+  let counterDualBand = "dualBandCounter";
+  let counterTriBand = "triBandCounter";
+  let counterNewDualBand = "newDualBandCounter";
 
   // Session management for password-based authentication
   let authenticatedSessions = Map.empty<Principal, Bool>();
@@ -36,7 +47,6 @@ actor {
     customText : Text;
     textSize : Nat;
     font : Text;
-    // Persistable position and layout controls
     barcodePositionX : Nat;
     barcodePositionY : Nat;
     textPositionX : Nat;
@@ -80,16 +90,13 @@ actor {
   var errorLogs : [ErrorLog] = [];
   let labelCounters = Map.empty<Text, Nat>();
 
-  // Prefixes as List<Text> for manipulation
   var prefixesList = List.empty<Text>();
 
-  // Title Mapping Type
   public type TitleMapping = {
     prefix : Text;
     title : Text;
   };
 
-  // Store title mappings
   var titleMappingsList = List.empty<TitleMapping>();
 
   // Helper function to check if caller is authenticated via password
@@ -107,12 +114,26 @@ actor {
     };
   };
 
-  // Health check endpoint
+  // Helper function to require user permission (authenticated + user role)
+  private func requireUserPermission(caller : Principal) {
+    requirePasswordAuth(caller);
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can perform this action");
+    };
+  };
+
+  // Helper function to require admin permission
+  private func requireAdminPermission(caller : Principal) {
+    requirePasswordAuth(caller);
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+  };
+
   public query ({ caller }) func health() : async Bool {
     true;
   };
 
-  // Authentication function - accepts anonymous calls and creates session on success
   public shared ({ caller }) func authenticate(password : Text) : async Bool {
     if (password == hardcodedPassword) {
       authenticatedSessions.add(caller, true);
@@ -126,14 +147,13 @@ actor {
     isPasswordAuthenticated(caller);
   };
 
-  // User Profile Management - requires password authentication
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     userProfiles.get(caller);
   };
 
   public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Can only view your own profile");
     };
@@ -141,18 +161,18 @@ actor {
   };
 
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     userProfiles.add(caller, profile);
   };
 
-  // Label Configuration Management
+  // Label Configuration Management - Admin only for modifications, users can read
   public shared ({ caller }) func saveLabelConfig(name : Text, config : LabelConfig) : async () {
-    requirePasswordAuth(caller);
+    requireAdminPermission(caller);
     labelConfigs.add(name, config);
   };
 
   public query ({ caller }) func getLabelConfig(name : Text) : async LabelConfig {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     switch (labelConfigs.get(name)) {
       case (null) { Runtime.trap("Config does not exist") };
       case (?config) { config };
@@ -160,12 +180,12 @@ actor {
   };
 
   public query ({ caller }) func getAllLabelConfigs() : async [LabelConfig] {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     labelConfigs.values().toArray();
   };
 
   public query ({ caller }) func getLabelConfigPreview(name : Text) : async LabelConfig {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     switch (labelConfigs.get(name)) {
       case (null) { Runtime.trap("Config does not exist") };
       case (?config) { config };
@@ -173,13 +193,13 @@ actor {
   };
 
   public query ({ caller }) func getAllLabelConfigsPreview() : async [LabelConfig] {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     labelConfigs.values().toArray();
   };
 
-  // Printer Management
+  // Printer Management - Admin only
   public shared ({ caller }) func addPrinter(name : Text, connectionType : Text) : async () {
-    requirePasswordAuth(caller);
+    requireAdminPermission(caller);
     let printer : Printer = {
       name;
       connectionType;
@@ -189,7 +209,7 @@ actor {
   };
 
   public shared ({ caller }) func updatePrinterStatus(name : Text, status : Text) : async () {
-    requirePasswordAuth(caller);
+    requireAdminPermission(caller);
     switch (printers.get(name)) {
       case (null) { Runtime.trap("Printer does not exist") };
       case (?printer) {
@@ -204,7 +224,7 @@ actor {
   };
 
   public query ({ caller }) func getPrinter(name : Text) : async Printer {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     switch (printers.get(name)) {
       case (null) { Runtime.trap("Printer does not exist") };
       case (?printer) { printer };
@@ -212,13 +232,13 @@ actor {
   };
 
   public query ({ caller }) func getAllPrinters() : async [Printer] {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     printers.values().toArray();
   };
 
-  // Print Records
+  // Print Records - Users can add, all can view
   public shared ({ caller }) func addPrintRecord(serialNumber : Text, labelType : Text, printer : Text) : async () {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     let record : PrintRecord = {
       timestamp = Time.now();
       serialNumber;
@@ -229,13 +249,13 @@ actor {
   };
 
   public query ({ caller }) func getAllPrintRecords() : async [PrintRecord] {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     printHistory;
   };
 
-  // Error Logs
+  // Error Logs - Users can add, all can view
   public shared ({ caller }) func addErrorLog(errorMessage : Text, printer : ?Text) : async () {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     let log : ErrorLog = {
       timestamp = Time.now();
       errorMessage;
@@ -245,65 +265,73 @@ actor {
   };
 
   public query ({ caller }) func getAllErrorLogs() : async [ErrorLog] {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     errorLogs;
   };
 
-  // Counter Functions for New Dual (72V) Labels
-  public shared ({ caller }) func incrementNewDualLabelCount() : async Nat {
-    requirePasswordAuth(caller);
-    let currentCount = switch (labelCounters.get(v72LabelKey)) {
-      case (null) { 0 };
-      case (?count) { count };
-    };
-    let newCount = currentCount + 1;
-    labelCounters.add(v72LabelKey, newCount);
-    newCount;
-  };
-
-  public query ({ caller }) func getNewDualLabelCount() : async Nat {
-    requirePasswordAuth(caller);
-    switch (labelCounters.get(v72LabelKey)) {
+  // Counter Functions - Users can read and increment, admins can reset
+  public query ({ caller }) func getLabelCount(labelType : Text) : async Nat {
+    requireUserPermission(caller);
+    switch (labelCounters.get(labelType)) {
       case (null) { 0 };
       case (?count) { count };
     };
   };
 
-  // Reset all counters
+  public shared ({ caller }) func incrementLabelCounter(prefix : Text) : async Nat {
+    requireUserPermission(caller);
+    let labelType = getLabelTypeByPrefixInternal(prefix);
+    switch (labelType) {
+      case (null) { Runtime.trap("Unknown prefix: " # prefix) };
+      case (?labelType) {
+        let currentCount = switch (labelCounters.get(labelType)) {
+          case (null) { 0 };
+          case (?count) { count };
+        };
+        let newCount = currentCount + 1;
+        labelCounters.add(labelType, newCount);
+        newCount;
+      };
+    };
+  };
+
+  public query ({ caller }) func getAllCounters() : async [(Text, Nat)] {
+    requireUserPermission(caller);
+    let entries = labelCounters.entries().toArray();
+    entries.map<(Text, Nat), (Text, Nat)>(
+      func((key, value)) { (key, value) }
+    );
+  };
+
   public shared ({ caller }) func resetAllCounters() : async () {
-    requirePasswordAuth(caller);
+    requireAdminPermission(caller);
     labelCounters.clear();
   };
 
-  // Clear print history - requires password authentication
   public shared ({ caller }) func clearPrintHistory() : async () {
-    requirePasswordAuth(caller);
+    requireAdminPermission(caller);
     printHistory := [];
   };
 
-  // Clear error logs - requires password authentication
   public shared ({ caller }) func clearErrorLogs() : async () {
-    requirePasswordAuth(caller);
+    requireAdminPermission(caller);
     errorLogs := [];
   };
 
-  // Prefix Validation Module
-
-  // Set prefixes (comma-separated or multiline)
+  // Prefix Management - Admin only
   public shared ({ caller }) func setPrefixes(newPrefixes : [Text]) : async () {
-    requirePasswordAuth(caller);
+    requireAdminPermission(caller);
     prefixesList.clear();
     prefixesList.addAll(newPrefixes.values());
   };
 
   public query ({ caller }) func getPrefixes() : async [Text] {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     prefixesList.toArray();
   };
 
-  // Validate a scanned barcode using prefixes
   public query ({ caller }) func validateBarcode(barcode : Text) : async Bool {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
 
     for (prefix in prefixesList.values()) {
       let trimmedPrefix = prefix.trim(#char(' '));
@@ -314,18 +342,16 @@ actor {
     false;
   };
 
-  // Add single prefix
   public shared ({ caller }) func addSinglePrefix(prefix : Text) : async () {
-    requirePasswordAuth(caller);
+    requireAdminPermission(caller);
     let trimmedPrefix = prefix.trim(#char(' '));
     if (trimmedPrefix.size() > 0) {
       prefixesList.add(trimmedPrefix);
     };
   };
 
-  // Remove specific prefix
   public shared ({ caller }) func removeSpecificPrefix(prefixToRemove : Text) : async () {
-    requirePasswordAuth(caller);
+    requireAdminPermission(caller);
     let trimmedToRemove = prefixToRemove.trim(#char(' '));
     let filteredPrefixes = prefixesList.filter(
       func(prefix) {
@@ -337,10 +363,9 @@ actor {
     prefixesList.addAll(filteredPrefixes.values());
   };
 
-  // Title Mapping Management
-
+  // Title Mapping - Users can read, admins can modify
   public query ({ caller }) func getTitleByPrefix(prefix : Text) : async ?Text {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     for (mapping in titleMappingsList.values()) {
       if (prefix.startsWith(#text (mapping.prefix))) {
         return ?mapping.title;
@@ -350,7 +375,7 @@ actor {
   };
 
   public shared ({ caller }) func addTitleMapping(prefix : Text, title : Text) : async () {
-    requirePasswordAuth(caller);
+    requireAdminPermission(caller);
     titleMappingsList.add({
       prefix;
       title;
@@ -358,12 +383,12 @@ actor {
   };
 
   public query ({ caller }) func getAllTitleMappings() : async [TitleMapping] {
-    requirePasswordAuth(caller);
+    requireUserPermission(caller);
     titleMappingsList.toArray();
   };
 
   public shared ({ caller }) func removeTitleMapping(prefixToRemove : Text) : async () {
-    requirePasswordAuth(caller);
+    requireAdminPermission(caller);
     let filteredMappings = titleMappingsList.filter(
       func(mapping) { mapping.prefix != prefixToRemove }
     );
@@ -371,27 +396,45 @@ actor {
     titleMappingsList.addAll(filteredMappings.values());
   };
 
-  // Helper function to initialize default title mappings
   public shared ({ caller }) func initializeDefaultTitles() : async () {
-    requirePasswordAuth(caller);
+    requireAdminPermission(caller);
 
     titleMappingsList.clear();
     titleMappingsList.add({
-      prefix = "55V";
+      prefix = prefixDualBand;
       title = "Dual Band";
     });
     titleMappingsList.add({
-      prefix = "72V";
+      prefix = prefixNewDualBand;
       title = "New Version Dual Band";
     });
     titleMappingsList.add({
-      prefix = "55Y";
+      prefix = prefixTriBand;
       title = "Tri Band";
     });
   };
 
-  // Logout function to clear session
+  // Returns label type internal identifier by prefix
+  private func getLabelTypeByPrefixInternal(prefix : Text) : ?Text {
+    if (prefix.startsWith(#text prefixDualBand)) { ?counterDualBand }
+    else if (prefix.startsWith(#text prefixTriBand)) { ?counterTriBand }
+    else if (prefix.startsWith(#text prefixNewDualBand)) { ?counterNewDualBand } else {
+      for (mapping in titleMappingsList.values()) {
+        if (prefix.startsWith(#text (mapping.prefix))) {
+          return ?mapping.title;
+        };
+      };
+      null;
+    };
+  };
+
+  public query ({ caller }) func getLabelTypeByPrefix(prefix : Text) : async ?Text {
+    requireUserPermission(caller);
+    getLabelTypeByPrefixInternal(prefix);
+  };
+
   public shared ({ caller }) func logout() : async () {
+    requirePasswordAuth(caller);
     authenticatedSessions.remove(caller);
   };
 };

@@ -95,10 +95,14 @@ export function renderLabelPreview(
   serial1: string,
   serial2: string,
   title: string,
-  zoom: number = 100
+  zoom: number = 100,
+  textSize?: number
 ): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
+
+  // Use textSize from layout if not provided
+  const effectiveTextSize = textSize !== undefined ? textSize : layout.textSize;
 
   // Calculate aspect ratio from layout dimensions
   const aspectRatio = layout.labelWidth / layout.labelHeight;
@@ -146,8 +150,8 @@ export function renderLabelPreview(
     layout.barcodeHeight * scale
   );
 
-  // Render first text
-  ctx.font = `${8 * scale}px monospace`;
+  // Render first text with configurable size
+  ctx.font = `${effectiveTextSize * scale}px monospace`;
   ctx.textAlign = 'left';
   ctx.fillText(serial1, layout.text1X * scale, layout.text1Y * scale);
 
@@ -161,6 +165,6 @@ export function renderLabelPreview(
     layout.barcodeHeight * scale
   );
 
-  // Render second text
+  // Render second text with configurable size
   ctx.fillText(serial2, layout.text2X * scale, layout.text2Y * scale);
 }

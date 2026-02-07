@@ -2,57 +2,11 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-make-the-label-settings-preview-and-cpcl-print-generation-use-the-same-single-source-of-truth-for-layout-calculations-so-the-settings-preview-matches-the-printed-label-1-1-same-centering-same-x-y-positions-same-barcode-height-width-scaling-same-spacing-gaps",
-      "featureTitle": "Make the Label Settings preview and CPCL print generation use the same single source of truth for layout calculations so the Settings preview matches the printed label 1:1 (same centering, same X/Y positions, same barcode height/width scaling, same spacing/gaps).",
-      "files": [
-        "frontend/src/pages/LabelSettings.tsx",
-        "frontend/src/utils/labelLayoutModel.ts",
-        "frontend/src/utils/labelPreviewRenderer.ts"
-      ],
-      "components": [
-        "camera@1.0.0",
-        "qr-code@1.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "authorization@4.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-8"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-fix-layout-centering-and-spacing-so-both-barcodes-are-horizontally-centered-on-the-label-when-centering-is-enabled-and-there-is-always-a-clear-non-overlapping-gap-between-each-barcode-and-its-serial-number-text-in-both-preview-and-printed-output",
-      "featureTitle": "Fix layout centering and spacing so both barcodes are horizontally centered on the label when centering is enabled, and there is always a clear, non-overlapping gap between each barcode and its serial number text in both preview and printed output.",
-      "files": [
-        "frontend/src/pages/LabelSettings.tsx",
-        "frontend/src/utils/labelLayoutModel.ts"
-      ],
-      "components": [
-        "camera@1.0.0",
-        "qr-code@1.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "authorization@4.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-9"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-ensure-label-settings-position-adjustments-barcodepositionx-y-textpositionx-y-barcodeheight-barcodewidthscale-horizontalspacing-and-any-gap-spacing-controls-are-loaded-from-the-saved-backend-labelconfig-editable-in-the-ui-persisted-back-to-the-backend-on-save-and-applied-to-cpcl-printing-not-preview-only",
-      "featureTitle": "Ensure Label Settings position adjustments (barcodePositionX/Y, textPositionX/Y, barcodeHeight, barcodeWidthScale, horizontalSpacing, and any gap/spacing controls) are loaded from the saved backend LabelConfig, editable in the UI, persisted back to the backend on Save, and applied to CPCL printing (not preview-only).",
+      "featureId": "feature-update-scan-print-so-it-increments-and-displays-the-correct-counter-based-on-the-scanned-serial-prefix-first-3-characters-55v-increments-dual-band-55y-increments-tri-band-72v-increments-new-dual-band-the-ui-must-show-all-three-counters-as-separate-tiles-cards-matching-the-existing-counter-card-style-shown-in-the-uploaded-reference-image",
+      "featureTitle": "Update Scan & Print so it increments and displays the correct counter based on the scanned serial prefix (first 3 characters): 55V increments Dual Band, 55Y increments Tri Band, 72V increments New Dual Band. The UI must show all three counters as separate tiles/cards (matching the existing counter-card style shown in the uploaded reference image).",
       "files": [
         "frontend/src/hooks/useQueries.ts",
-        "frontend/src/pages/LabelSettings.tsx",
-        "frontend/src/utils/labelLayoutModel.ts"
+        "frontend/src/pages/ScanPrint.tsx"
       ],
       "components": [
         "camera@1.0.0",
@@ -65,15 +19,16 @@
         "github-export-icp-cli@1.0.0"
       ],
       "testIds": [
-        "REQ-10"
+        "REQ-13"
       ],
       "confidence": "high"
     },
     {
-      "featureId": "feature-update-the-unified-layout-computation-to-correctly-respect-user-configured-text-positioning-when-centering-is-disabled-and-keep-title-barcode-text-x-calculations-consistent-between-preview-and-cpcl-avoid-preview-only-text-width-approximations-that-cause-drift",
-      "featureTitle": "Update the unified layout computation to correctly respect user-configured text positioning when centering is disabled, and keep title/barcode/text X calculations consistent between preview and CPCL (avoid preview-only text width approximations that cause drift).",
+      "featureId": "feature-add-a-label-settings-control-to-adjust-the-serial-number-text-size-persist-it-to-the-saved-labelconfig-and-apply-it-consistently-in-both-the-label-preview-renderer-and-cpcl-print-generation",
+      "featureTitle": "Add a Label Settings control to adjust the serial-number text size, persist it to the saved LabelConfig, and apply it consistently in BOTH the label preview renderer and CPCL print generation.",
       "files": [
         "frontend/src/pages/LabelSettings.tsx",
+        "frontend/src/utils/cpclTemplates.ts",
         "frontend/src/utils/labelLayoutModel.ts",
         "frontend/src/utils/labelPreviewRenderer.ts"
       ],
@@ -88,7 +43,7 @@
         "github-export-icp-cli@1.0.0"
       ],
       "testIds": [
-        "REQ-11"
+        "REQ-14"
       ],
       "confidence": "high"
     }

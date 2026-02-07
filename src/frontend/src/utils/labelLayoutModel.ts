@@ -110,6 +110,9 @@ export interface DualSerialLayout {
   barcodeHeight: number;
   moduleWidth: number;
   
+  // Text settings
+  textSize: number;
+  
   // Effective (clamped) values
   effectiveTextGap: number;
   effectiveBlockSpacing: number;
@@ -130,6 +133,7 @@ export function computeDualSerialLayout(
   const barcodeHeight = config ? Number(config.barcodeHeight) : DEFAULT_LAYOUT.BARCODE_HEIGHT;
   const moduleWidth = config ? Number(config.barcodeWidthScale) : DEFAULT_LAYOUT.NARROW_BAR;
   const centerContents = config ? config.centerContents : true;
+  const textSize = config && Number(config.textSize) > 0 ? Number(config.textSize) : DEFAULT_LAYOUT.TEXT_FONT_SIZE;
   
   // Calculate text gap and block spacing from config
   let requestedTextGap = DEFAULT_LAYOUT.TEXT_GAP;
@@ -165,7 +169,7 @@ export function computeDualSerialLayout(
   
   // Center text when centerContents is true
   const text1X = centerContents
-    ? calculateCenteredTextX(serial1)
+    ? calculateCenteredTextX(serial1, textSize)
     : (config ? Number(config.textPositionX) : DEFAULT_LAYOUT.LEFT_MARGIN);
   
   const barcode2Y = barcode1Y + effectiveBlockSpacing;
@@ -179,7 +183,7 @@ export function computeDualSerialLayout(
   
   // Center second text when centerContents is true
   const text2X = centerContents
-    ? calculateCenteredTextX(serial2)
+    ? calculateCenteredTextX(serial2, textSize)
     : (config ? Number(config.textPositionX) : DEFAULT_LAYOUT.LEFT_MARGIN);
   
   return {
@@ -197,6 +201,7 @@ export function computeDualSerialLayout(
     text2Y,
     barcodeHeight,
     moduleWidth,
+    textSize,
     effectiveTextGap,
     effectiveBlockSpacing,
   };

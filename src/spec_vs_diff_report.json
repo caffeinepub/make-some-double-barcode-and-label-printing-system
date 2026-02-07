@@ -1,36 +1,63 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-06T22:20:03.610Z",
-  "summary": "Diff introduces a unified layout model (labelLayoutModel) and a shared canvas preview renderer (labelPreviewRenderer), and updates LabelSettings to compute preview layout from saved LabelConfig values. Backend LabelConfig is extended to persist layout/position fields, with a migration module added. However, the diff evidence does not show UI controls for all required position adjustments (notably explicit barcode/text X/Y), nor does it clearly demonstrate that non-centered (manual) X positioning is respected consistently across preview and CPCL generation.",
-  "missing_requirements": [
+  "generatedAt": "2026-02-07T00:24:11.486Z",
+  "summary": "REQ-13 and REQ-14 appear implemented in the frontend and shared print/preview utilities (three per-prefix counters in Scan & Print; serial text size persisted via LabelConfig.textSize and applied to both preview and CPCL). Backend REQ-12 cannot be fully verified from the truncated backend/main.mo diff excerpt, but multiple frontend hooks were added that assume new backend counter query/update endpoints exist. Several unrelated tablet/ops improvements and a stable-state migration (dropping v72LabelKey) were added without being requested.",
+  "missing_requirements": [],
+  "hallucinated_features": [
     {
-      "id": "REQ-10",
-      "requirement": "Ensure Label Settings position adjustments (barcodePositionX/Y, textPositionX/Y, barcodeHeight, barcodeWidthScale, horizontalSpacing, and any gap/spacing controls) are loaded from the saved backend LabelConfig, editable in the UI, persisted back to the backend on Save, and applied to CPCL printing (not preview-only).",
-      "reason": "LabelSettings in the diff shows state and controls for barcodeHeight, barcodeWidthScale, a derived textGap, blockSpacing (horizontalSpacing), and centerContents, but does not show any UI/editable inputs for explicit barcodePositionX/Y or textPositionX/Y; therefore it is not evidenced that those required position adjustments are editable and persisted/applied.",
+      "description": "Stable-state migration that drops `v72LabelKey` from actor state (adds backend/migration.mo and wires migration in backend/main.mo).",
+      "reason": "BuildRequest only requested per-prefix counters and a serial text size setting; it also constrained migrations to only when required. The diff shows a migration specifically removing `v72LabelKey`, which is not mentioned in the request.",
       "evidence": [
-        "frontend/src/pages/LabelSettings.tsx"
+        "backend/migration.mo",
+        "backend/main.mo"
       ]
     },
     {
-      "id": "REQ-11",
-      "requirement": "Update the unified layout computation to correctly respect user-configured text positioning when centering is disabled, and keep title/barcode/text X calculations consistent between preview and CPCL (avoid preview-only text width approximations that cause drift).",
-      "reason": "The unified layout model includes centered X calculations based on simple text-length * fontSize approximations (e.g., calculateCenteredTextX/titleX). The diff does not provide evidence that when centering is disabled the model uses config-provided textPositionX (and other X overrides) consistently, nor that CPCL generation uses the same exact text-width logic as preview (only the preview renderer is shown).",
+      "description": "Touch/tablet UI and global styling enhancements (tap highlight, touch-action, coarse-pointer tab sizing changes).",
+      "reason": "Not requested; explicitly outside scope (no redesign beyond what is required for serial text size).",
       "evidence": [
-        "frontend/src/utils/labelLayoutModel.ts",
-        "frontend/src/utils/labelPreviewRenderer.ts",
+        "frontend/src/index.css",
+        "frontend-file-summaries.txt"
+      ]
+    },
+    {
+      "description": "Wake Lock feature to prevent tablet sleep.",
+      "reason": "Not requested and falls under adding new real-time/device behavior unrelated to counters/text sizing.",
+      "evidence": [
+        "frontend/src/hooks/useWakeLock.ts",
+        "frontend-file-summaries.txt"
+      ]
+    },
+    {
+      "description": "Login/actor recovery and additional production startup validation logging.",
+      "reason": "Not requested; authentication changes were a non-goal (even if password unchanged, behavior/flow changes were not asked for).",
+      "evidence": [
+        "frontend/src/components/LoginScreen.tsx",
+        "frontend/src/hooks/useActor.ts",
+        "frontend/src/main.tsx",
+        "frontend-file-summaries.txt"
+      ]
+    },
+    {
+      "description": "New/expanded deployment documentation (frontend/DEPLOYMENT.md) and additional IC error classification utilities.",
+      "reason": "Not requested; documentation and broader troubleshooting utilities are outside the specified requirements.",
+      "evidence": [
+        "frontend/DEPLOYMENT.md",
+        "frontend/src/utils/icErrors.ts",
         "frontend-file-summaries.txt"
       ]
     }
   ],
-  "hallucinated_features": [],
-  "confidence": 0.63,
+  "confidence": 0.62,
   "changed_files": [
     "backend/main.mo",
     "backend/migration.mo",
     "frontend-file-summaries.txt",
     "frontend/src/hooks/useQueries.ts",
     "frontend/src/pages/LabelSettings.tsx",
+    "frontend/src/pages/ScanPrint.tsx",
+    "frontend/src/utils/cpclTemplates.ts",
     "frontend/src/utils/labelLayoutModel.ts",
     "frontend/src/utils/labelPreviewRenderer.ts",
     "project_state.json"

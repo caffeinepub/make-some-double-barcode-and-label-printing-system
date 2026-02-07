@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Printer, AlertCircle, AlertTriangle } from 'lucide-react';
-import { usePrintLabel, usePrinters, useAddErrorLog, useGetDualLabelCount, useIncrementDualLabelCount, useValidateBarcode, useGetTitleByPrefix, useLabelConfigs, useInitializeDefaultTitles, useGetTitleMappings } from '../hooks/useQueries';
+import { usePrintLabel, usePrinters, useAddErrorLog, useGetDualBandCount, useGetTriBandCount, useGetNewDualBandCount, useIncrementLabelCounter, useValidateBarcode, useGetTitleByPrefix, useLabelConfigs, useInitializeDefaultTitles, useGetTitleMappings } from '../hooks/useQueries';
 import { toast } from 'sonner';
 import { useUsbPrinter } from '../contexts/UsbPrinterContext';
 import { usePrintProtocol } from '../contexts/PrintProtocolContext';
@@ -22,8 +22,6 @@ export function ScanPrint() {
   const [secondSerial, setSecondSerial] = useState('');
   const [firstSerialState, setFirstSerialState] = useState<ValidationState>('neutral');
   const [secondSerialState, setSecondSerialState] = useState<ValidationState>('neutral');
-  const [dualLabels, setDualLabels] = useState(0);
-  const [triLabels, setTriLabels] = useState(0);
   const [batchMode, setBatchMode] = useState(false);
   const [scannedSerials, setScannedSerials] = useState<string[]>([]);
   const [blockingError, setBlockingError] = useState<string>('');
@@ -41,12 +39,14 @@ export function ScanPrint() {
   const printersRef = useRef<any[]>([]);
 
   const { data: printers = [] } = usePrinters();
-  const { data: dualLabelCount = BigInt(0) } = useGetDualLabelCount();
+  const { data: dualBandCount = BigInt(0) } = useGetDualBandCount();
+  const { data: triBandCount = BigInt(0) } = useGetTriBandCount();
+  const { data: newDualBandCount = BigInt(0) } = useGetNewDualBandCount();
   const { data: labelConfigs = [] } = useLabelConfigs();
   const { data: titleMappings = [] } = useGetTitleMappings();
   const printMutation = usePrintLabel();
   const addErrorMutation = useAddErrorLog();
-  const incrementDualLabelMutation = useIncrementDualLabelCount();
+  const incrementCounterMutation = useIncrementLabelCounter();
   const validateBarcodeMutation = useValidateBarcode();
   const getTitleMutation = useGetTitleByPrefix();
   const initTitlesMutation = useInitializeDefaultTitles();
@@ -194,11 +194,6 @@ export function ScanPrint() {
   };
 
   const handleSecondSerialSubmit = async (serial?: string) => {
-    // Prevent multiple auto-print triggers
-    if (autoPrintInProgressRef.current) {
-      return;
-    }
-
     const serialToValidate = serial || secondSerial;
     const normalized = normalizeScannedValue(serialToValidate);
     
@@ -220,300 +215,175 @@ export function ScanPrint() {
       return;
     }
 
-    // Check printer connection at scan time using latest state
-    const isUsbConnected = usbPrinter.isConnected;
-    const isBackendConnected = printersRef.current.some((p) => p.status === 'connected');
-    const isPrinterConnected = isUsbConnected || isBackendConnected;
-
-    if (!isPrinterConnected) {
-      setSecondSerialState('invalid');
-      playSound('error');
-      const errorMsg = 'Please connect a printer in the Devices tab';
-      toast.error('No printer connected', { description: errorMsg });
-      setBlockingError(errorMsg);
-      return;
-    }
-
     setSecondSerial(normalized);
     setSecondSerialState('valid');
     playSound('success');
     setScannedSerials((prev) => [...prev, normalized]);
     setBlockingError('');
     toast.success('Second serial scanned', { description: normalized });
+    
+    // Auto-print if both serials are valid
+    if (firstSerialState === 'valid' && firstSerialRef.current) {
+      await handlePrint();
+    }
+  };
 
-    // Auto-print after second scan using the ref value for first serial
+  const handlePrint = async () => {
+    if (autoPrintInProgressRef.current) {
+      return;
+    }
+
+    if (!firstSerial || !secondSerial) {
+      toast.error('Both serial numbers are required');
+      return;
+    }
+
+    if (!usbPrinter.isConnected) {
+      toast.error('Printer not connected', { description: 'Please connect a printer in the Devices tab' });
+      return;
+    }
+
     autoPrintInProgressRef.current = true;
+
     try {
-      await performPrint(firstSerialRef.current, normalized);
+      // Get title for first serial
+      const prefix = firstSerial.substring(0, 3);
+      const titleResult = await getTitleMutation.mutateAsync(prefix);
+      const title = titleResult || 'Dual Band';
+
+      // Get saved config
+      const config = labelConfigs.find(() => true) || null;
+
+      // Generate CPCL
+      const cpclCommand = generateDualSerialCpcl(firstSerial, secondSerial, title, { config });
+
+      // Send to printer
+      await usbPrinter.sendCpcl(cpclCommand);
+      playSound('print');
+      toast.success('Label printed successfully!');
+
+      // Increment counter based on prefix
+      try {
+        await incrementCounterMutation.mutateAsync(prefix);
+      } catch (counterError) {
+        console.warn('Failed to increment counter:', counterError);
+      }
+
+      // Log print record
+      try {
+        await printMutation.mutateAsync({
+          serialNumber: `${firstSerial}, ${secondSerial}`,
+          labelType: title,
+          printer: usbPrinter.deviceInfo?.productName || 'USB Printer',
+        });
+      } catch (logError) {
+        console.warn('Failed to log print record:', logError);
+      }
+
+      // Reset for next scan
+      setFirstSerial('');
+      setSecondSerial('');
+      setFirstSerialState('neutral');
+      setSecondSerialState('neutral');
+      setActiveField('first');
+      firstSerialRef.current = '';
+    } catch (error: any) {
+      console.error('Print error:', error);
+      playSound('error');
+      
+      const errorMessage = error?.message || 'Unknown print error';
+      toast.error('Print failed', { description: errorMessage });
+
+      // Best-effort error logging
+      try {
+        await addErrorMutation.mutateAsync({
+          errorMessage,
+          printer: usbPrinter.deviceInfo?.productName || null,
+        });
+      } catch (logError) {
+        console.warn('Failed to log error:', logError);
+      }
     } finally {
       autoPrintInProgressRef.current = false;
     }
   };
 
-  const performPrint = async (serial1: string, serial2: string) => {
-    // Normalize both serials
-    const normalizedSerial1 = normalizeScannedValue(serial1);
-    const normalizedSerial2 = normalizeScannedValue(serial2);
-
-    // Extract prefix (first 3 characters) for title lookup
-    const prefix = normalizedSerial1.substring(0, 3);
-
-    // Get title for the label
-    let title = 'Dual Band';
-    try {
-      const fetchedTitle = await getTitleMutation.mutateAsync(prefix);
-      if (fetchedTitle) {
-        title = fetchedTitle;
-      }
-    } catch (error) {
-      console.warn('Failed to fetch title, using default:', error);
-    }
-
-    // Load persisted label config (if available)
-    const defaultConfig = labelConfigs.find(c => true); // Get first config (default)
-
-    // Step 1: USB Print (if applicable)
-    let usbPrintSuccess = false;
-    if (protocol === 'CPCL' && usbPrinter.isConnected) {
-      try {
-        const cpclCommand = generateDualSerialCpcl(normalizedSerial1, normalizedSerial2, title, {
-          config: defaultConfig || null,
-        });
-        await usbPrinter.sendCpcl(cpclCommand);
-        usbPrintSuccess = true;
-      } catch (usbError) {
-        // USB print failed - this is a blocking error
-        const errorMsg = usbError instanceof Error ? usbError.message : 'USB print failed';
-        playSound('error');
-        toast.error('USB print failed', { description: errorMsg });
-        
-        // Best-effort error logging
-        try {
-          await addErrorMutation.mutateAsync({
-            errorMessage: `USB Print Error: ${errorMsg}`,
-            printer: 'USB Printer',
-          });
-        } catch (logError) {
-          console.warn('Failed to log USB error:', logError);
-        }
-        
-        setBlockingError(`USB print failed: ${errorMsg}`);
-        return; // Don't proceed with backend record if USB failed
-      }
-    } else {
-      // No USB print needed, consider it successful
-      usbPrintSuccess = true;
-    }
-
-    // Step 2: Backend Recording (non-blocking if USB succeeded)
-    if (usbPrintSuccess) {
-      try {
-        const connectedPrinter = printersRef.current.find((p) => p.status === 'connected');
-        const printerName = usbPrinter.isConnected ? 'USB Printer' : (connectedPrinter?.name || 'Unknown');
-        
-        await printMutation.mutateAsync({
-          serialNumber: `${normalizedSerial1},${normalizedSerial2}`,
-          labelType: title,
-          printer: printerName,
-        });
-        
-        await incrementDualLabelMutation.mutateAsync();
-        
-        // Full success
-        playSound('print');
-        toast.success('Label printed successfully!');
-        setDualLabels((prev) => prev + 1);
-        setBlockingError('');
-      } catch (backendError) {
-        // Backend recording failed, but USB print succeeded
-        const operatorMessage = getOperatorErrorSummary(backendError);
-        
-        // Show warning (not error) since print succeeded
-        playSound('print'); // Still play success sound since label printed
-        toast.warning('Label printed', { 
-          description: operatorMessage,
-          duration: 5000,
-        });
-        
-        // Best-effort error logging
-        try {
-          await addErrorMutation.mutateAsync({
-            errorMessage: `Backend recording failed: ${operatorMessage}`,
-            printer: usbPrinter.isConnected ? 'USB Printer' : printersRef.current.find((p) => p.status === 'connected')?.name,
-          });
-        } catch (logError) {
-          console.warn('Failed to log backend error:', logError);
-        }
-        
-        // Don't set blocking error - allow next scan
-        console.warn('Backend recording failed but print succeeded:', backendError);
-      }
-      
-      // Reset for next scan (always reset after USB success)
-      setFirstSerial('');
-      setSecondSerial('');
-      firstSerialRef.current = '';
-      setFirstSerialState('neutral');
-      setSecondSerialState('neutral');
-      setActiveField('first');
-      firstScannerRef.current?.reset();
-      secondScannerRef.current?.reset();
-    }
-  };
-
-  const handleClearCurrent = () => {
+  const handleClear = () => {
     setFirstSerial('');
     setSecondSerial('');
-    firstSerialRef.current = '';
     setFirstSerialState('neutral');
     setSecondSerialState('neutral');
     setBlockingError('');
     setActiveField('first');
-    firstScannerRef.current?.reset();
-    secondScannerRef.current?.reset();
-    toast.info('Current serials cleared');
+    firstSerialRef.current = '';
+    toast.info('Cleared all fields');
   };
 
-  const handleTestScan = () => {
-    const testSerial1 = `72V${Math.floor(Math.random() * 1000000)}`;
-    const testSerial2 = `72V${Math.floor(Math.random() * 1000000)}`;
-    setFirstSerial(testSerial1);
-    setSecondSerial(testSerial2);
-    firstSerialRef.current = testSerial1;
-    setFirstSerialState('neutral');
-    setSecondSerialState('neutral');
-    setBlockingError('');
-    toast.info('Test serials generated');
-  };
-
-  const handleResetCounters = () => {
-    setDualLabels(0);
-    setTriLabels(0);
-    setScannedSerials([]);
-    toast.info('Counters reset');
-  };
-
-  const handlePrintLabel = async () => {
-    if (!firstSerial || !secondSerial) {
-      toast.error('Please scan both serial numbers');
-      return;
-    }
-
-    // Check printer connection at button click time
-    const isUsbConnected = usbPrinter.isConnected;
-    const isBackendConnected = printersRef.current.some((p) => p.status === 'connected');
-    const isPrinterConnected = isUsbConnected || isBackendConnected;
-
-    if (!isPrinterConnected) {
-      toast.error('No printer connected');
-      return;
-    }
-
-    await performPrint(firstSerial, secondSerial);
-  };
-
-  const getInputClassName = (state: ValidationState, isActive: boolean) => {
-    const baseClass = "bg-[#1a1a1a] text-white placeholder:text-zinc-500 h-14 text-lg transition-all duration-300";
-    
-    // Active field gets a subtle highlight
-    const activeClass = isActive ? "ring-2 ring-blue-500/30" : "";
-    
-    switch (state) {
-      case 'valid':
-        return `${baseClass} ${activeClass} border-2 border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]`;
-      case 'invalid':
-        return `${baseClass} ${activeClass} border-2 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]`;
-      default:
-        return `${baseClass} ${activeClass} border border-zinc-700`;
-    }
-  };
-
-  // Scanner-only input handlers (for when inputs are focused)
-  const handleFirstInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (firstScannerRef.current) {
-      firstScannerRef.current.handleKeyDown(e.nativeEvent);
-    }
-  };
-
-  const handleSecondInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (secondScannerRef.current) {
-      secondScannerRef.current.handleKeyDown(e.nativeEvent);
-    }
-  };
-
-  const handleInputPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-  };
-
-  const handleInputDrop = (e: React.DragEvent<HTMLInputElement>) => {
-    e.preventDefault();
-  };
-
-  // Blur inputs immediately if they get focus (prevents keyboard)
-  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.blur();
-  };
+  const totalScanned = scannedSerials.length;
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-4 gap-4">
+      {/* Header with counters */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-[#0f0f0f] border-zinc-800">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-4 h-4 rounded-full ${printerConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-                <div>
-                  <p className="text-base text-zinc-400">Printer Status</p>
-                  <p className="text-white font-medium text-lg">{printerConnected ? 'Connected' : 'Not Connected'}</p>
-                </div>
-              </div>
+          <CardHeader className="pb-3">
+            <CardDescription className="text-zinc-400">Printer Status</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${printerConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span className="text-2xl font-bold text-white">
+                {printerConnected ? 'Connected' : 'Not Connected'}
+              </span>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-[#0f0f0f] border-zinc-800">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-base text-zinc-400">Dual Band Labels</p>
-                <p className="text-5xl font-bold text-white">{dualLabels}</p>
-              </div>
-              <Printer className="h-12 w-12 text-blue-500" />
+          <CardHeader className="pb-3">
+            <CardDescription className="text-zinc-400">Dual Band Labels</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-3">
+              <Printer className="h-8 w-8 text-blue-500" />
+              <span className="text-5xl font-bold text-white">{Number(dualBandCount)}</span>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-[#0f0f0f] border-zinc-800">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-base text-zinc-400">Tri Band Labels</p>
-                <p className="text-5xl font-bold text-white">{triLabels}</p>
-              </div>
-              <Printer className="h-12 w-12 text-purple-500" />
+          <CardHeader className="pb-3">
+            <CardDescription className="text-zinc-400">Tri Band Labels</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-3">
+              <Printer className="h-8 w-8 text-purple-500" />
+              <span className="text-5xl font-bold text-white">{Number(triBandCount)}</span>
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-[#0f0f0f] border-zinc-800">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-base text-zinc-400">Total Scanned</p>
-                <p className="text-5xl font-bold text-white">{scannedSerials.length}</p>
-              </div>
+          <CardHeader className="pb-3">
+            <CardDescription className="text-zinc-400">New Dual Band Labels</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-3">
+              <Printer className="h-8 w-8 text-green-500" />
+              <span className="text-5xl font-bold text-white">{Number(newDualBandCount)}</span>
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* Blocking error banner */}
       {blockingError && (
-        <Card className="bg-red-950/20 border-red-900">
+        <Card className="bg-red-950 border-red-800">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <AlertCircle className="h-6 w-6 text-red-500" />
+              <AlertCircle className="h-6 w-6 text-red-400" />
               <div>
-                <p className="text-red-400 font-medium text-base">Error</p>
+                <p className="text-red-200 font-semibold">Scan Error</p>
                 <p className="text-red-300 text-sm">{blockingError}</p>
               </div>
             </div>
@@ -521,77 +391,133 @@ export function ScanPrint() {
         </Card>
       )}
 
+      {/* Scanning interface */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className={`bg-[#0f0f0f] border-2 transition-colors ${
+          activeField === 'first' ? 'border-blue-500' : 'border-zinc-800'
+        }`}>
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              First Serial Number
+              {activeField === 'first' && (
+                <Badge variant="outline" className="bg-blue-500/20 text-blue-400 border-blue-500">
+                  Active
+                </Badge>
+              )}
+            </CardTitle>
+            <CardDescription className="text-zinc-400">
+              Scan or enter the first barcode
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="first-serial" className="text-white">Serial Number</Label>
+              <Input
+                ref={firstInputRef}
+                id="first-serial"
+                value={firstSerial}
+                onChange={(e) => setFirstSerial(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleFirstSerialSubmit();
+                  }
+                }}
+                placeholder="Scan first barcode..."
+                className={`bg-zinc-900 border-zinc-700 text-white text-lg h-14 ${
+                  firstSerialState === 'valid' ? 'border-green-500' :
+                  firstSerialState === 'invalid' ? 'border-red-500' : ''
+                }`}
+                disabled={firstSerialState === 'valid'}
+              />
+            </div>
+            {firstSerialState === 'valid' && (
+              <div className="flex items-center gap-2 text-green-400">
+                <div className="w-2 h-2 rounded-full bg-green-400" />
+                <span className="text-sm">Valid barcode scanned</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className={`bg-[#0f0f0f] border-2 transition-colors ${
+          activeField === 'second' ? 'border-blue-500' : 'border-zinc-800'
+        }`}>
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              Second Serial Number
+              {activeField === 'second' && (
+                <Badge variant="outline" className="bg-blue-500/20 text-blue-400 border-blue-500">
+                  Active
+                </Badge>
+              )}
+            </CardTitle>
+            <CardDescription className="text-zinc-400">
+              Scan or enter the second barcode
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="second-serial" className="text-white">Serial Number</Label>
+              <Input
+                ref={secondInputRef}
+                id="second-serial"
+                value={secondSerial}
+                onChange={(e) => setSecondSerial(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSecondSerialSubmit();
+                  }
+                }}
+                placeholder="Scan second barcode..."
+                className={`bg-zinc-900 border-zinc-700 text-white text-lg h-14 ${
+                  secondSerialState === 'valid' ? 'border-green-500' :
+                  secondSerialState === 'invalid' ? 'border-red-500' : ''
+                }`}
+                disabled={firstSerialState !== 'valid' || secondSerialState === 'valid'}
+              />
+            </div>
+            {secondSerialState === 'valid' && (
+              <div className="flex items-center gap-2 text-green-400">
+                <div className="w-2 h-2 rounded-full bg-green-400" />
+                <span className="text-sm">Valid barcode scanned</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex gap-4">
+        <Button
+          onClick={handlePrint}
+          disabled={firstSerialState !== 'valid' || secondSerialState !== 'valid' || !usbPrinter.isConnected}
+          className="flex-1 bg-blue-600 hover:bg-blue-700 h-14 text-lg"
+        >
+          <Printer className="h-5 w-5 mr-2" />
+          Print Label
+        </Button>
+        <Button
+          onClick={handleClear}
+          variant="outline"
+          className="bg-zinc-900 border-zinc-700 hover:bg-zinc-800 h-14 px-8"
+        >
+          Clear
+        </Button>
+      </div>
+
+      {/* Session stats */}
       <Card className="bg-[#0f0f0f] border-zinc-800">
         <CardHeader>
-          <CardTitle className="text-white text-2xl">Scan Serial Numbers</CardTitle>
-          <CardDescription className="text-zinc-400 text-base">
-            Scan two serial numbers to print a dual-band label
-          </CardDescription>
+          <CardTitle className="text-white">Session Statistics</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="firstSerial" className="text-white text-base">
-              First Serial Number {activeField === 'first' && <Badge variant="outline" className="ml-2">Active</Badge>}
-            </Label>
-            <Input
-              ref={firstInputRef}
-              id="firstSerial"
-              value={firstSerial}
-              onChange={(e) => setFirstSerial(e.target.value)}
-              onKeyDown={handleFirstInputKeyDown}
-              onPaste={handleInputPaste}
-              onDrop={handleInputDrop}
-              onFocus={handleInputFocus}
-              placeholder="Scan first barcode..."
-              className={getInputClassName(firstSerialState, activeField === 'first')}
-              readOnly
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="secondSerial" className="text-white text-base">
-              Second Serial Number {activeField === 'second' && <Badge variant="outline" className="ml-2">Active</Badge>}
-            </Label>
-            <Input
-              ref={secondInputRef}
-              id="secondSerial"
-              value={secondSerial}
-              onChange={(e) => setSecondSerial(e.target.value)}
-              onKeyDown={handleSecondInputKeyDown}
-              onPaste={handleInputPaste}
-              onDrop={handleInputDrop}
-              onFocus={handleInputFocus}
-              placeholder="Scan second barcode..."
-              className={getInputClassName(secondSerialState, activeField === 'second')}
-              readOnly
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <Button
-              onClick={handlePrintLabel}
-              disabled={!firstSerial || !secondSerial || !printerConnected}
-              className="h-12 text-base bg-blue-600 hover:bg-blue-700"
-            >
-              <Printer className="mr-2 h-5 w-5" />
-              Print Label
-            </Button>
-
-            <Button
-              onClick={handleClearCurrent}
-              variant="outline"
-              className="h-12 text-base"
-            >
-              Clear
-            </Button>
-
-            <Button
-              onClick={handleTestScan}
-              variant="outline"
-              className="h-12 text-base"
-            >
-              Test Scan
-            </Button>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-zinc-400 text-sm">Total Scanned</p>
+              <p className="text-3xl font-bold text-white">{totalScanned}</p>
+            </div>
           </div>
         </CardContent>
       </Card>

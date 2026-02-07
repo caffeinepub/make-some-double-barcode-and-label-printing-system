@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 71,
+  "projectStateVersion": 73,
   "summary": "Make Some Double!! is a tablet-friendly barcode scanning and label printing web app backed by an Internet Computer (Motoko) canister. The frontend provides four main tabs (Scan & Print, Label Settings, Devices, Diagnostics) and a password-based login screen. After authentication, users can manage printers (logical connections), configure label parameters and validation prefixes, scan two serial numbers to create a combined print record, track counters (notably for “New Dual (72V)” labels), and review/export print history and error logs. The backend canister stores user profiles, label configs, printer records, print history, error logs, prefix rules, and title mappings, and enforces a password-authenticated session per caller principal.",
   "architectural_notes": [
     "Frontend is a React + TypeScript SPA with a dark, touch-optimized UI (Tailwind + shadcn/ui components, lucide-react icons).",
@@ -26,7 +26,7 @@
     "usePrintHistory/useErrorLogs sorting uses Number(b.timestamp - a.timestamp) where timestamps likely deserialize as BigInt; conversion can be lossy for large values and may cause runtime/type issues depending on generated types.",
     "Label Settings preview and CPCL printed output are not using a fully synchronized layout model/units, so adjusting barcode/text positions can change the preview without matching the physical printed label (centering and barcode-to-serial gap drift)."
   ],
-  "isFixRequest": true,
+  "isFixRequest": false,
   "existing_features": [
     {
       "id": "IF-1",
@@ -363,6 +363,22 @@
         "REQ-11"
       ],
       "version": 1
+    },
+    {
+      "id": "feature-update-scan-print-so-it-increments-and-displays-the-correct-counter-based-on-the-scanned-serial-prefix-first-3-characters-55v-increments-dual-band-55y-increments-tri-band-72v-increments-new-dual-band-the-ui-must-show-all-three-counters-as-separate-tiles-cards-matching-the-existing-counter-card-style-shown-in-the-uploaded-reference-image",
+      "title": "Update Scan & Print so it increments and displays the correct counter based on the scanned serial prefix (first 3 characters): 55V increments Dual Band, 55Y increments Tri Band, 72V increments New Dual Band. The UI must show all three counters as separate tiles/cards (matching the existing counter-card style shown in the uploaded reference image).",
+      "reqIds": [
+        "REQ-13"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-label-settings-control-to-adjust-the-serial-number-text-size-persist-it-to-the-saved-labelconfig-and-apply-it-consistently-in-both-the-label-preview-renderer-and-cpcl-print-generation",
+      "title": "Add a Label Settings control to adjust the serial-number text size, persist it to the saved LabelConfig, and apply it consistently in BOTH the label preview renderer and CPCL print generation.",
+      "reqIds": [
+        "REQ-14"
+      ],
+      "version": 1
     }
   ],
   "new_feature_requests": [
@@ -438,6 +454,26 @@
       "id": "AR-12",
       "summary": "Ensure label settings (barcode/serial positions, spacing, centering) affect the actual printed CPCL output; prevent barcode/serial overlap and keep content centered",
       "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-13",
+      "summary": "Add separate on-screen counters by scanned serial prefix/label type: 55V→Dual Band, 55Y→Tri Band, 72V→New Dual Band",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-14",
+      "summary": "Label Settings: add an option to change the serial-number text size (printed CPCL output and preview)",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-15",
+      "summary": "Implement separate persistent counters for printed labels by serial prefix: 55V → “Dual Band”, 55Y → “Tri Band”, 72V → “New Dual Band”. Counters must be stored in the backend and not rely on frontend-only state.",
+      "reqIds": [
+        "REQ-12"
+      ],
       "status": "pending"
     }
   ],

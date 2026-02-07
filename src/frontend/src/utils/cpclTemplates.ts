@@ -83,6 +83,10 @@ export function generateDualSerialCpcl(
   // Compute layout using unified model
   const layout = computeDualSerialLayout(serial1, serial2, title, options.config);
   
+  // Map textSize to CPCL size parameter (0-7 scale)
+  // textSize 6-16 maps to CPCL size 0-3
+  const cpclTextSize = Math.max(0, Math.min(3, Math.floor((layout.textSize - 6) / 3)));
+  
   return [
     `! 0 200 200 ${height} ${quantity}`,
     `PAGE-WIDTH ${width}`,
@@ -90,12 +94,12 @@ export function generateDualSerialCpcl(
     `TEXT ${LABEL_LAYOUT.TITLE_FONT} ${LABEL_LAYOUT.TITLE_SIZE} ${layout.titleX} ${layout.titleY} ${title}`,
     // First barcode
     `BARCODE 128 ${layout.moduleWidth} ${layout.moduleWidth} ${layout.barcodeHeight} ${layout.barcode1X} ${layout.barcode1Y} ${serial1}`,
-    // First serial text
-    `TEXT ${LABEL_LAYOUT.TEXT_FONT} ${LABEL_LAYOUT.TEXT_SIZE} ${layout.text1X} ${layout.text1Y} ${serial1}`,
+    // First serial text with configurable size
+    `TEXT ${LABEL_LAYOUT.TEXT_FONT} ${cpclTextSize} ${layout.text1X} ${layout.text1Y} ${serial1}`,
     // Second barcode
     `BARCODE 128 ${layout.moduleWidth} ${layout.moduleWidth} ${layout.barcodeHeight} ${layout.barcode2X} ${layout.barcode2Y} ${serial2}`,
-    // Second serial text
-    `TEXT ${LABEL_LAYOUT.TEXT_FONT} ${LABEL_LAYOUT.TEXT_SIZE} ${layout.text2X} ${layout.text2Y} ${serial2}`,
+    // Second serial text with configurable size
+    `TEXT ${LABEL_LAYOUT.TEXT_FONT} ${cpclTextSize} ${layout.text2X} ${layout.text2Y} ${serial2}`,
     'PRINT',
     '',
   ].join('\r\n');

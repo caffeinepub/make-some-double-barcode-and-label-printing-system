@@ -9,7 +9,9 @@ const QUERY_KEYS = {
   LABEL_CONFIGS: ['labelConfigs'],
   PRINT_RECORDS: ['printRecords'],
   ERROR_LOGS: ['errorLogs'],
-  DUAL_LABEL_COUNT: ['dualLabelCount'],
+  DUAL_BAND_COUNT: ['dualBandCount'],
+  TRI_BAND_COUNT: ['triBandCount'],
+  NEW_DUAL_BAND_COUNT: ['newDualBandCount'],
   PREFIXES: ['prefixes'],
   TITLE_MAPPINGS: ['titleMappings'],
   USER_PROFILE: ['userProfile'],
@@ -184,7 +186,9 @@ export function usePrintLabel() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PRINT_RECORDS });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DUAL_LABEL_COUNT });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DUAL_BAND_COUNT });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRI_BAND_COUNT });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.NEW_DUAL_BAND_COUNT });
     },
   });
 }
@@ -248,31 +252,59 @@ export function useClearErrorLogs() {
   });
 }
 
-// Counter Queries
-export function useGetDualLabelCount() {
+// Counter Queries - Per-prefix counters
+export function useGetDualBandCount() {
   const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<bigint>({
-    queryKey: QUERY_KEYS.DUAL_LABEL_COUNT,
+    queryKey: QUERY_KEYS.DUAL_BAND_COUNT,
     queryFn: async () => {
       if (!actor) return BigInt(0);
-      return actor.getNewDualLabelCount();
+      return actor.getLabelCount('dualBandCounter');
     },
     enabled: !!actor && !actorFetching,
   });
 }
 
-export function useIncrementDualLabelCount() {
+export function useGetTriBandCount() {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery<bigint>({
+    queryKey: QUERY_KEYS.TRI_BAND_COUNT,
+    queryFn: async () => {
+      if (!actor) return BigInt(0);
+      return actor.getLabelCount('triBandCounter');
+    },
+    enabled: !!actor && !actorFetching,
+  });
+}
+
+export function useGetNewDualBandCount() {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery<bigint>({
+    queryKey: QUERY_KEYS.NEW_DUAL_BAND_COUNT,
+    queryFn: async () => {
+      if (!actor) return BigInt(0);
+      return actor.getLabelCount('newDualBandCounter');
+    },
+    enabled: !!actor && !actorFetching,
+  });
+}
+
+export function useIncrementLabelCounter() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (prefix: string) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.incrementNewDualLabelCount();
+      return actor.incrementLabelCounter(prefix);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DUAL_LABEL_COUNT });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DUAL_BAND_COUNT });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRI_BAND_COUNT });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.NEW_DUAL_BAND_COUNT });
     },
   });
 }
@@ -287,7 +319,9 @@ export function useResetAllCounters() {
       return actor.resetAllCounters();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DUAL_LABEL_COUNT });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.DUAL_BAND_COUNT });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRI_BAND_COUNT });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.NEW_DUAL_BAND_COUNT });
     },
   });
 }

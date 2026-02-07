@@ -1,9 +1,17 @@
 import Map "mo:core/Map";
-import Principal "mo:core/Principal";
+import Array "mo:core/Array";
 import List "mo:core/List";
+import Int "mo:core/Int";
+import Nat "mo:core/Nat";
+import Principal "mo:core/Principal";
 
 module {
-  type OldLabelConfig = {
+  type UserProfile = {
+    name : Text;
+    role : Text;
+  };
+
+  type LabelConfig = {
     width : Nat;
     height : Nat;
     margin : Nat;
@@ -11,7 +19,6 @@ module {
     customText : Text;
     textSize : Nat;
     font : Text;
-    // Old version had position controls but did not persist them
     barcodePositionX : Nat;
     barcodePositionY : Nat;
     textPositionX : Nat;
@@ -22,34 +29,64 @@ module {
     centerContents : Bool;
   };
 
-  type OldActor = {
-    authenticatedSessions : Map.Map<Principal, Bool>;
-    userProfiles : Map.Map<Principal, { name : Text; role : Text }>;
-    labelConfigs : Map.Map<Text, OldLabelConfig>;
-    printers : Map.Map<Text, { name : Text; connectionType : Text; status : Text }>;
-    printHistory : [{ timestamp : Int; serialNumber : Text; labelType : Text; printer : Text }];
-    errorLogs : [{ timestamp : Int; errorMessage : Text; printer : ?Text }];
-    labelCounters : Map.Map<Text, Nat>;
-    prefixesList : List.List<Text>;
-    titleMappingsList : List.List<{ prefix : Text; title : Text }>;
+  type Printer = {
+    name : Text;
+    connectionType : Text;
+    status : Text;
   };
 
-  type NewLabelConfig = OldLabelConfig;
+  type PrintRecord = {
+    timestamp : Int;
+    serialNumber : Text;
+    labelType : Text;
+    printer : Text;
+  };
+
+  type ErrorLog = {
+    timestamp : Int;
+    errorMessage : Text;
+    printer : ?Text;
+  };
+
+  type TitleMapping = {
+    prefix : Text;
+    title : Text;
+  };
+
+  type OldActor = {
+    userProfiles : Map.Map<Principal, UserProfile>;
+    labelConfigs : Map.Map<Text, LabelConfig>;
+    printers : Map.Map<Text, Printer>;
+    printHistory : [PrintRecord];
+    errorLogs : [ErrorLog];
+    labelCounters : Map.Map<Text, Nat>;
+    prefixesList : List.List<Text>;
+    titleMappingsList : List.List<TitleMapping>;
+    v72LabelKey : Text;
+  };
 
   type NewActor = {
-    authenticatedSessions : Map.Map<Principal, Bool>;
-    userProfiles : Map.Map<Principal, { name : Text; role : Text }>;
-    labelConfigs : Map.Map<Text, NewLabelConfig>;
-    printers : Map.Map<Text, { name : Text; connectionType : Text; status : Text }>;
-    printHistory : [{ timestamp : Int; serialNumber : Text; labelType : Text; printer : Text }];
-    errorLogs : [{ timestamp : Int; errorMessage : Text; printer : ?Text }];
+    userProfiles : Map.Map<Principal, UserProfile>;
+    labelConfigs : Map.Map<Text, LabelConfig>;
+    printers : Map.Map<Text, Printer>;
+    printHistory : [PrintRecord];
+    errorLogs : [ErrorLog];
     labelCounters : Map.Map<Text, Nat>;
     prefixesList : List.List<Text>;
-    titleMappingsList : List.List<{ prefix : Text; title : Text }>;
+    titleMappingsList : List.List<TitleMapping>;
   };
 
+  /// A migration function that transforms OldActor into NewActor by dropping v72LabelKey
   public func run(old : OldActor) : NewActor {
-    // No actual data transformation needed
-    old;
+    {
+      userProfiles = old.userProfiles;
+      labelConfigs = old.labelConfigs;
+      printers = old.printers;
+      printHistory = old.printHistory;
+      errorLogs = old.errorLogs;
+      labelCounters = old.labelCounters;
+      prefixesList = old.prefixesList;
+      titleMappingsList = old.titleMappingsList;
+    };
   };
 };
