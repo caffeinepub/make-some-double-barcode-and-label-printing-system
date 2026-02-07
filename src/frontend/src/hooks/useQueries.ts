@@ -337,6 +337,7 @@ export function useGetValidPrefixes() {
       return actor.getPrefixes();
     },
     enabled: !!actor && !actorFetching,
+    staleTime: 30000, // Cache for 30 seconds
   });
 }
 

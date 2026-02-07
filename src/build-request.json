@@ -1,77 +1,56 @@
 {
   "kind": "build_request",
-  "title": "Add per-prefix label counters (55V/55Y/72V) and serial-number text size setting",
-  "priority": "normal",
+  "title": "Fix Scan & Print auto-print reliability and enforce invalid prefix errors",
+  "priority": "high",
   "requirements": [
     {
-      "id": "REQ-12",
-      "text": "Implement separate persistent counters for printed labels by serial prefix: 55V → “Dual Band”, 55Y → “Tri Band”, 72V → “New Dual Band”. Counters must be stored in the backend and not rely on frontend-only state.",
-      "target": "backend",
+      "id": "REQ-18",
+      "text": "Fix Scan & Print so that after the second serial number is scanned and validated successfully, the app reliably auto-prints the CPCL label without requiring any manual Print action, including when the two scans happen very quickly back-to-back (no race conditions between the first-scan validation and the second-scan handler).",
+      "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-1"
+          "msg-6"
         ],
         "quotes": [
-          "Need counter for:\nDual Band which prefix is 55V\nTri Band which prefix is 55Y\nNew Dual Band which prefix is 72V"
+          "Is not printing automatically. Fix that."
         ]
       },
       "acceptanceCriteria": [
-        "Backend exposes query methods to fetch each counter value (55V/Dual Band, 55Y/Tri Band, 72V/New Dual Band).",
-        "Backend exposes update methods to increment the appropriate counter based on the scanned/printed serial prefix (55V/55Y/72V).",
-        "Existing resetAllCounters clears all three counters.",
-        "Counter values persist across page reloads (i.e., fetched from backend, not computed from local state)."
+        "When protocol is CPCL and a USB printer is connected, scanning a valid first serial and then scanning a valid second serial prints exactly one label automatically without pressing the Print button.",
+        "If the second scan occurs before the first scan’s async validation has completed, the app still auto-prints once both validations are complete (no missed auto-print).",
+        "Auto-print does not trigger more than once per pair of serials (no duplicate prints).",
+        "If auto-print cannot run due to protocol not being CPCL or printer not connected, the operator sees a clear toast explaining why, and the app does not attempt to print."
       ]
     },
     {
-      "id": "REQ-13",
-      "text": "Update Scan & Print so it increments and displays the correct counter based on the scanned serial prefix (first 3 characters): 55V increments Dual Band, 55Y increments Tri Band, 72V increments New Dual Band. The UI must show all three counters as separate tiles/cards (matching the existing counter-card style shown in the uploaded reference image).",
+      "id": "REQ-19",
+      "text": "Enforce strict prefix validation for all scans: if any scanned serial number does not match an allowed/valid prefix, the app must show an error immediately and must not accept the serial into the workflow (no skipping prefix validation on backend errors).",
       "target": "both",
       "source": {
         "messageIds": [
-          "msg-1"
+          "msg-6"
         ],
         "quotes": [
-          "Need counter for:\nDual Band which prefix is 55V\nTri Band which prefix is 55Y\nNew Dual Band which prefix is 72V"
+          "Also if any serial number is scanned with not valid prefix show error."
         ]
       },
       "acceptanceCriteria": [
-        "After a successful print with a 55V serial, the Dual Band counter increases by 1; 55Y increases Tri Band by 1; 72V increases New Dual Band by 1.",
-        "Counters shown in the Scan & Print header are sourced from backend values (React Query), not only local component state.",
-        "The Scan & Print counter tiles include: “Dual Band Labels”, “Tri Band Labels”, and “New Dual Band Labels” (English labels).",
-        "The counters update immediately after a successful print (optimistic update or refetch) and remain correct after refreshing the page."
-      ]
-    },
-    {
-      "id": "REQ-14",
-      "text": "Add a Label Settings control to adjust the serial-number text size, persist it to the saved LabelConfig, and apply it consistently in BOTH the label preview renderer and CPCL print generation.",
-      "target": "both",
-      "source": {
-        "messageIds": [
-          "msg-1"
-        ],
-        "quotes": [
-          "Label settings need option to change text size for serial number."
-        ]
-      },
-      "acceptanceCriteria": [
-        "Label Settings includes a new control labeled “Serial Text Size” that updates the draft config and is saved with the existing Save Configuration flow.",
-        "The saved LabelConfig’s existing `textSize` field is used for serial-number text sizing in preview AND CPCL output (no preview-only behavior).",
-        "CPCL output uses the configured serial text size (e.g., changes the CPCL TEXT size parameter) for both serial lines.",
-        "Preview canvas serial-number text visibly changes size when the setting changes and matches the printed output scaling behavior.",
-        "Existing saved configs that have `textSize` set continue to load and render correctly; if missing/zero, a sensible default is applied."
+        "Scanning a serial with an invalid prefix shows a toast error with English text indicating the prefix is invalid and the serial field is marked invalid (red state).",
+        "The invalid serial is not added to the scanned-serials list used for duplicate detection, and does not advance the workflow to the next field.",
+        "The app does not silently allow scans when backend prefix validation fails; instead it shows a toast error indicating validation could not be performed (English) and logs a best-effort errorLog entry.",
+        "Backend has a consistent configuration such that prefix validation can succeed by default (e.g., a default set of prefixes exists or validation has deterministic behavior when none are configured)."
       ]
     }
   ],
   "constraints": [
     "Backend must remain a single Motoko actor in backend/main.mo (no additional backend services).",
-    "Only create/update backend/migration.mo if an actual stable-state migration is required by the change.",
-    "Do not edit frontend immutable paths: frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useInternetIdentity.tsx, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, frontend/src/components/ui (compose instead).",
-    "Use English for any user-facing text."
+    "Do not edit files under frontend/src/components/ui or any other frontend immutablePaths listed in SYSTEM_CONTEXT.",
+    "Use English for all user-facing text (toasts, banners, error messages)."
   ],
   "nonGoals": [
-    "Do not change authentication (including the hardcoded password) as part of this request.",
-    "Do not redesign label layout/centering/spacing beyond what is required to support serial text size.",
-    "Do not add new printer connection methods or real-time features."
+    "Adding new printer connection mechanisms beyond the existing WebUSB flow.",
+    "Changing label layout/CPCL template formatting beyond what is necessary to restore auto-print triggering.",
+    "Implementing new authentication providers or third-party integrations."
   ],
   "imageRequirements": {
     "required": [],

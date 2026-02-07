@@ -1,60 +1,44 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Per-prefix label counters in Scan & Print + serial text size setting for preview and CPCL",
+  "title": "Scan & Print: reliable CPCL auto-print and strict invalid-prefix handling",
   "requirements": [
     {
-      "id": "REQ-13",
-      "summary": "Update Scan & Print to fetch, display, and increment separate backend counters for 55V/Dual Band, 55Y/Tri Band, and 72V/New Dual Band based on scanned serial prefix.",
+      "id": "REQ-18",
+      "summary": "Eliminate Scan & Print auto-print race conditions so CPCL labels auto-print exactly once after two valid scans (even when scans are back-to-back).",
       "acceptanceCriteria": [
-        "After a successful print with a 55V serial, the Dual Band counter increases by 1; 55Y increases Tri Band by 1; 72V increases New Dual Band by 1.",
-        "Counters shown in the Scan & Print header are sourced from backend values (React Query), not only local component state.",
-        "The Scan & Print counter tiles include: “Dual Band Labels”, “Tri Band Labels”, and “New Dual Band Labels” (English labels).",
-        "The counters update immediately after a successful print (optimistic update or refetch) and remain correct after refreshing the page."
+        "When protocol is CPCL and a USB printer is connected, scanning a valid first serial and then scanning a valid second serial prints exactly one label automatically without pressing the Print button.",
+        "If the second scan occurs before the first scan’s async validation has completed, the app still auto-prints once both validations are complete (no missed auto-print).",
+        "Auto-print does not trigger more than once per pair of serials (no duplicate prints).",
+        "If auto-print cannot run due to protocol not being CPCL or printer not connected, the operator sees a clear toast explaining why, and the app does not attempt to print."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/hooks/useQueries.ts",
-          "operation": "modify",
-          "description": "Add/adjust React Query hooks to read the three per-label-type counter values from the backend interface (using existing backend functions), and add a mutation to increment the correct counter based on a provided serial prefix; ensure related queries are invalidated/refetched for immediate UI updates."
-        },
-        {
           "path": "frontend/src/pages/ScanPrint.tsx",
           "operation": "modify",
-          "description": "Replace local-only dual/tri counter state with backend-sourced counters (React Query) for Dual Band / Tri Band / New Dual Band; update the header tiles to show all three counters (matching existing counter-card styling), and on successful print call the increment mutation with the scanned serial prefix (first 3 chars) so the correct counter updates immediately and remains correct after refresh."
+          "description": "Refactor the two-scan workflow into a small state machine that (1) tracks completion/validity of first and second async validations independently, (2) queues/holds a second scan that completes before the first validation returns, and (3) calls a single guarded maybeAutoPrint() function after each validation completes. Ensure auto-print is gated by CPCL protocol + USB connected, and is idempotent per (firstSerial, secondSerial) pair to prevent duplicates; if gated conditions are not met, show an English toast explaining why and do not attempt to print."
         }
       ]
     },
     {
-      "id": "REQ-14",
-      "summary": "Add a “Serial Text Size” setting in Label Settings, persist it via LabelConfig.textSize, and apply it consistently in both label preview rendering and CPCL print generation.",
+      "id": "REQ-19",
+      "summary": "Enforce strict prefix validation for all scans; invalid prefixes or validation failures must error immediately and must not enter the workflow.",
       "acceptanceCriteria": [
-        "Label Settings includes a new control labeled “Serial Text Size” that updates the draft config and is saved with the existing Save Configuration flow.",
-        "The saved LabelConfig’s existing `textSize` field is used for serial-number text sizing in preview AND CPCL output (no preview-only behavior).",
-        "CPCL output uses the configured serial text size (e.g., changes the CPCL TEXT size parameter) for both serial lines.",
-        "Preview canvas serial-number text visibly changes size when the setting changes and matches the printed output scaling behavior.",
-        "Existing saved configs that have `textSize` set continue to load and render correctly; if missing/zero, a sensible default is applied."
+        "Scanning a serial with an invalid prefix shows a toast error with English text indicating the prefix is invalid and the serial field is marked invalid (red state).",
+        "The invalid serial is not added to the scanned-serials list used for duplicate detection, and does not advance the workflow to the next field.",
+        "The app does not silently allow scans when backend prefix validation fails; instead it shows a toast error indicating validation could not be performed (English) and logs a best-effort errorLog entry.",
+        "Backend has a consistent configuration such that prefix validation can succeed by default (e.g., a default set of prefixes exists or validation has deterministic behavior when none are configured)."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/pages/LabelSettings.tsx",
+          "path": "frontend/src/pages/ScanPrint.tsx",
           "operation": "modify",
-          "description": "Add a new UI control labeled “Serial Text Size” to the existing Label Settings form; initialize it from the loaded saved LabelConfig.textSize (with a sensible default if missing/zero), update the draft config builder to use the chosen value, and ensure the existing Save Configuration flow persists it."
+          "description": "Update scan validation to be strict: use the existing prefixes data (via the existing query hook for prefixes) for immediate local prefix rejection when available, and ensure that any backend validation error (including missing/empty prefixes) results in an English toast error stating validation could not be performed, a best-effort addErrorLog call, and the scanned value being rejected (not added to scannedSerials, not advancing activeField, and not retained in internal refs used for printing)."
         },
         {
-          "path": "frontend/src/utils/labelLayoutModel.ts",
+          "path": "frontend/src/hooks/useQueries.ts",
           "operation": "modify",
-          "description": "Extend the unified layout model to account for configurable serial text sizing derived from LabelConfig.textSize (including defaulting when missing/zero) so centering/position calculations can remain consistent as text size changes."
-        },
-        {
-          "path": "frontend/src/utils/labelPreviewRenderer.ts",
-          "operation": "modify",
-          "description": "Update preview rendering to use the configured serial text size (from the computed layout / config) when drawing both serial-number lines so the canvas preview visibly scales and remains consistent with CPCL output."
-        },
-        {
-          "path": "frontend/src/utils/cpclTemplates.ts",
-          "operation": "modify",
-          "description": "Update CPCL generation for dual-serial labels to use LabelConfig.textSize for the CPCL TEXT size parameter for both serial lines (with a sensible default if missing/zero), ensuring printed output matches the preview renderer."
+          "description": "Ensure the existing prefixes query hook is exported/usable in Scan & Print (and, if needed, adjust its enabled/retry behavior so the Scan & Print view can reliably know whether prefixes are loaded vs. unavailable, without changing any backend capabilities)."
         }
       ]
     }

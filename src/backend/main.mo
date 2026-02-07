@@ -9,12 +9,10 @@ import AccessControl "authorization/access-control";
 import Runtime "mo:core/Runtime";
 import Nat "mo:core/Nat";
 import Time "mo:core/Time";
-import Migration "migration";
+
 
 import MixinAuthorization "authorization/MixinAuthorization";
 
-// Persistent data structures with types
-(with migration = Migration.run)
 actor {
   // Hardcoded password for authentication
   let hardcodedPassword = "swh1400";
@@ -280,6 +278,11 @@ actor {
 
   public shared ({ caller }) func incrementLabelCounter(prefix : Text) : async Nat {
     requireUserPermission(caller);
+
+    if (not isValidPrefixInternal(prefix)) {
+      Runtime.trap("Error: Serial does not match prefix requirements");
+    };
+
     let labelType = getLabelTypeByPrefixInternal(prefix);
     switch (labelType) {
       case (null) { Runtime.trap("Unknown prefix: " # prefix) };
@@ -332,14 +335,7 @@ actor {
 
   public query ({ caller }) func validateBarcode(barcode : Text) : async Bool {
     requireUserPermission(caller);
-
-    for (prefix in prefixesList.values()) {
-      let trimmedPrefix = prefix.trim(#char(' '));
-      if (trimmedPrefix.size() > 0 and barcode.startsWith(#text (trimmedPrefix))) {
-        return true;
-      };
-    };
-    false;
+    isValidPrefixInternal(barcode);
   };
 
   public shared ({ caller }) func addSinglePrefix(prefix : Text) : async () {
@@ -426,6 +422,16 @@ actor {
       };
       null;
     };
+  };
+
+  private func isValidPrefixInternal(testPrefix : Text) : Bool {
+    for (prefix in prefixesList.values()) {
+      let trimmedPrefix = prefix.trim(#char(' '));
+      if (trimmedPrefix.size() > 0 and testPrefix.startsWith(#text (trimmedPrefix))) {
+        return true;
+      };
+    };
+    false;
   };
 
   public query ({ caller }) func getLabelTypeByPrefix(prefix : Text) : async ?Text {

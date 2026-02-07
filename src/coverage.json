@@ -1,71 +1,49 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-07T00:24:11.489Z",
+  "generatedAt": "2026-02-07T08:03:30.200Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 3,
+    "total": 2,
     "implemented": 2,
     "items": [
       {
-        "id": "REQ-12",
-        "summary": "Implement separate persistent counters for printed labels by serial prefix: 55V → “Dual Band”, 55Y → “Tri Band”, 72V → “New Dual Band”. Counters must be stored in the backend and not rely on frontend-only state.",
-        "status": "unknown",
-        "plannedFiles": [],
-        "matchedFiles": []
-      },
-      {
-        "id": "REQ-13",
-        "summary": "Update Scan & Print so it increments and displays the correct counter based on the scanned serial prefix (first 3 characters): 55V increments Dual Band, 55Y increments Tri Band, 72V increments New Dual Band. The UI must show all three counters as separate tiles/cards (matching the existing counter-card style shown in the uploaded reference image).",
+        "id": "REQ-18",
+        "summary": "Fix Scan & Print so that after the second serial number is scanned and validated successfully, the app reliably auto-prints the CPCL label without requiring any manual Print action, including when the two scans happen very quickly back-to-back (no race conditions between the first-scan validation and the second-scan handler).",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/hooks/useQueries.ts",
           "frontend/src/pages/ScanPrint.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/hooks/useQueries.ts",
           "frontend/src/pages/ScanPrint.tsx"
         ]
       },
       {
-        "id": "REQ-14",
-        "summary": "Add a Label Settings control to adjust the serial-number text size, persist it to the saved LabelConfig, and apply it consistently in BOTH the label preview renderer and CPCL print generation.",
+        "id": "REQ-19",
+        "summary": "Enforce strict prefix validation for all scans: if any scanned serial number does not match an allowed/valid prefix, the app must show an error immediately and must not accept the serial into the workflow (no skipping prefix validation on backend errors).",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/pages/LabelSettings.tsx",
-          "frontend/src/utils/labelLayoutModel.ts",
-          "frontend/src/utils/labelPreviewRenderer.ts",
-          "frontend/src/utils/cpclTemplates.ts"
+          "frontend/src/pages/ScanPrint.tsx",
+          "frontend/src/hooks/useQueries.ts"
         ],
         "matchedFiles": [
-          "frontend/src/pages/LabelSettings.tsx",
-          "frontend/src/utils/labelLayoutModel.ts",
-          "frontend/src/utils/labelPreviewRenderer.ts",
-          "frontend/src/utils/cpclTemplates.ts"
+          "frontend/src/pages/ScanPrint.tsx",
+          "frontend/src/hooks/useQueries.ts"
         ]
       }
     ]
   },
   "changedFiles": [
     "backend/main.mo",
-    "backend/migration.mo",
     "build-request.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/src/backend.d.ts",
-    "frontend/src/backend.ts",
-    "frontend/src/declarations/backend.did.d.ts",
-    "frontend/src/declarations/backend.did.js",
     "frontend/src/hooks/useQueries.ts",
-    "frontend/src/pages/LabelSettings.tsx",
     "frontend/src/pages/ScanPrint.tsx",
-    "frontend/src/utils/cpclTemplates.ts",
-    "frontend/src/utils/labelLayoutModel.ts",
-    "frontend/src/utils/labelPreviewRenderer.ts",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

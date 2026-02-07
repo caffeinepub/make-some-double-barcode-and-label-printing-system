@@ -2,8 +2,29 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-update-scan-print-so-it-increments-and-displays-the-correct-counter-based-on-the-scanned-serial-prefix-first-3-characters-55v-increments-dual-band-55y-increments-tri-band-72v-increments-new-dual-band-the-ui-must-show-all-three-counters-as-separate-tiles-cards-matching-the-existing-counter-card-style-shown-in-the-uploaded-reference-image",
-      "featureTitle": "Update Scan & Print so it increments and displays the correct counter based on the scanned serial prefix (first 3 characters): 55V increments Dual Band, 55Y increments Tri Band, 72V increments New Dual Band. The UI must show all three counters as separate tiles/cards (matching the existing counter-card style shown in the uploaded reference image).",
+      "featureId": "feature-fix-scan-print-so-that-after-the-second-serial-number-is-scanned-and-validated-successfully-the-app-reliably-auto-prints-the-cpcl-label-without-requiring-any-manual-print-action-including-when-the-two-scans-happen-very-quickly-back-to-back-no-race-conditions-between-the-first-scan-validation-and-the-second-scan-handler",
+      "featureTitle": "Fix Scan & Print so that after the second serial number is scanned and validated successfully, the app reliably auto-prints the CPCL label without requiring any manual Print action, including when the two scans happen very quickly back-to-back (no race conditions between the first-scan validation and the second-scan handler).",
+      "files": [
+        "frontend/src/pages/ScanPrint.tsx"
+      ],
+      "components": [
+        "camera@1.0.0",
+        "qr-code@1.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "authorization@4.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-18"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-enforce-strict-prefix-validation-for-all-scans-if-any-scanned-serial-number-does-not-match-an-allowed-valid-prefix-the-app-must-show-an-error-immediately-and-must-not-accept-the-serial-into-the-workflow-no-skipping-prefix-validation-on-backend-errors",
+      "featureTitle": "Enforce strict prefix validation for all scans: if any scanned serial number does not match an allowed/valid prefix, the app must show an error immediately and must not accept the serial into the workflow (no skipping prefix validation on backend errors).",
       "files": [
         "frontend/src/hooks/useQueries.ts",
         "frontend/src/pages/ScanPrint.tsx"
@@ -19,31 +40,7 @@
         "github-export-icp-cli@1.0.0"
       ],
       "testIds": [
-        "REQ-13"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-add-a-label-settings-control-to-adjust-the-serial-number-text-size-persist-it-to-the-saved-labelconfig-and-apply-it-consistently-in-both-the-label-preview-renderer-and-cpcl-print-generation",
-      "featureTitle": "Add a Label Settings control to adjust the serial-number text size, persist it to the saved LabelConfig, and apply it consistently in BOTH the label preview renderer and CPCL print generation.",
-      "files": [
-        "frontend/src/pages/LabelSettings.tsx",
-        "frontend/src/utils/cpclTemplates.ts",
-        "frontend/src/utils/labelLayoutModel.ts",
-        "frontend/src/utils/labelPreviewRenderer.ts"
-      ],
-      "components": [
-        "camera@1.0.0",
-        "qr-code@1.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "authorization@4.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-14"
+        "REQ-19"
       ],
       "confidence": "high"
     }

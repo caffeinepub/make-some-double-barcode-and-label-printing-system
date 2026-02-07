@@ -211,11 +211,11 @@ export function UsbPrinterProvider({ children }: { children: React.ReactNode }) 
   const sendCpcl = useCallback(
     async (cpclCommand: string) => {
       if (!state.device || !state.isConnected) {
-        throw new Error('No USB printer connected');
+        throw new Error('No USB printer connected. Please connect a printer in the Devices tab.');
       }
 
       if (!endpointRef.current) {
-        throw new Error('No endpoint available for writing');
+        throw new Error('No endpoint available for writing to printer.');
       }
 
       try {
@@ -227,7 +227,7 @@ export function UsbPrinterProvider({ children }: { children: React.ReactNode }) 
         const result = await state.device.transferOut(endpointRef.current.endpointNumber, data);
 
         if (result.status !== 'ok') {
-          throw new Error(`Transfer failed with status: ${result.status}`);
+          throw new Error(`USB transfer failed with status: ${result.status}. Please check printer connection.`);
         }
       } catch (error: any) {
         // Check if device was disconnected
@@ -241,9 +241,12 @@ export function UsbPrinterProvider({ children }: { children: React.ReactNode }) 
           }));
           endpointRef.current = null;
           interfaceNumberRef.current = null;
+          throw new Error('Printer disconnected during print. Please reconnect the printer.');
         }
 
-        throw new Error(error.message || 'Failed to send data to printer');
+        // Provide more descriptive error messages
+        const errorMessage = error.message || 'Failed to send data to printer';
+        throw new Error(errorMessage);
       }
     },
     [state.device, state.isConnected]

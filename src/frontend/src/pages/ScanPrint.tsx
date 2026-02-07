@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Printer, AlertCircle, AlertTriangle } from 'lucide-react';
-import { usePrintLabel, usePrinters, useAddErrorLog, useGetDualBandCount, useGetTriBandCount, useGetNewDualBandCount, useIncrementLabelCounter, useValidateBarcode, useGetTitleByPrefix, useLabelConfigs, useInitializeDefaultTitles, useGetTitleMappings } from '../hooks/useQueries';
+import { usePrintLabel, usePrinters, useAddErrorLog, useGetDualBandCount, useGetTriBandCount, useGetNewDualBandCount, useIncrementLabelCounter, useValidateBarcode, useGetTitleByPrefix, useLabelConfigs, useInitializeDefaultTitles, useGetTitleMappings, useGetValidPrefixes } from '../hooks/useQueries';
 import { toast } from 'sonner';
 import { useUsbPrinter } from '../contexts/UsbPrinterContext';
 import { usePrintProtocol } from '../contexts/PrintProtocolContext';
@@ -16,6 +16,15 @@ import { isStoppedCanisterError, getOperatorErrorSummary } from '../utils/icErro
 
 type ValidationState = 'neutral' | 'valid' | 'invalid';
 type ActiveField = 'first' | 'second' | null;
+
+// State machine for two-scan workflow
+type ScanState = 
+  | { stage: 'idle' }
+  | { stage: 'first-validating'; serial: string }
+  | { stage: 'first-valid'; serial: string }
+  | { stage: 'second-validating'; firstSerial: string; secondSerial: string }
+  | { stage: 'both-valid'; firstSerial: string; secondSerial: string }
+  | { stage: 'printing'; firstSerial: string; secondSerial: string };
 
 export function ScanPrint() {
   const [firstSerial, setFirstSerial] = useState('');
@@ -32,11 +41,9 @@ export function ScanPrint() {
   const firstScannerRef = useRef<ScannerOnlyInput | null>(null);
   const secondScannerRef = useRef<ScannerOnlyInput | null>(null);
   
-  // Refs to avoid stale closures
-  const firstSerialRef = useRef<string>('');
-  const autoPrintInProgressRef = useRef<boolean>(false);
+  // State machine ref
+  const scanStateRef = useRef<ScanState>({ stage: 'idle' });
   const scannedSerialsRef = useRef<string[]>([]);
-  const printersRef = useRef<any[]>([]);
 
   const { data: printers = [] } = usePrinters();
   const { data: dualBandCount = BigInt(0) } = useGetDualBandCount();
@@ -44,6 +51,7 @@ export function ScanPrint() {
   const { data: newDualBandCount = BigInt(0) } = useGetNewDualBandCount();
   const { data: labelConfigs = [] } = useLabelConfigs();
   const { data: titleMappings = [] } = useGetTitleMappings();
+  const { data: prefixes = [] } = useGetValidPrefixes();
   const printMutation = usePrintLabel();
   const addErrorMutation = useAddErrorLog();
   const incrementCounterMutation = useIncrementLabelCounter();
@@ -69,10 +77,6 @@ export function ScanPrint() {
   useEffect(() => {
     scannedSerialsRef.current = scannedSerials;
   }, [scannedSerials]);
-
-  useEffect(() => {
-    printersRef.current = printers;
-  }, [printers]);
 
   // Check printer connection status (for display only)
   const printerConnected = usbPrinter.isConnected || printers.some((p) => p.status === 'connected');
@@ -109,7 +113,6 @@ export function ScanPrint() {
     firstScannerRef.current = new ScannerOnlyInput((value) => {
       const normalized = normalizeScannedValue(value);
       setFirstSerial(normalized);
-      firstSerialRef.current = normalized;
       handleFirstSerialSubmit(normalized);
     });
 
@@ -133,6 +136,22 @@ export function ScanPrint() {
     }
   };
 
+  // Strict local prefix validation
+  const hasValidPrefix = (serial: string): boolean => {
+    if (prefixes.length === 0) {
+      // No prefixes configured - cannot validate
+      return false;
+    }
+    
+    for (const prefix of prefixes) {
+      const trimmedPrefix = prefix.trim();
+      if (trimmedPrefix.length > 0 && serial.startsWith(trimmedPrefix)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const validateSerial = async (serial: string): Promise<{ valid: boolean; error?: string }> => {
     const normalized = normalizeScannedValue(serial);
     
@@ -145,15 +164,33 @@ export function ScanPrint() {
       return { valid: false, error: 'Duplicate serial number detected' };
     }
 
-    // Validate against backend prefixes
+    // Strict prefix validation - local check first
+    if (prefixes.length > 0 && !hasValidPrefix(normalized)) {
+      return { valid: false, error: 'Invalid barcode prefix - serial does not match configured prefixes' };
+    }
+
+    // Validate against backend
     try {
       const isValid = await validateBarcodeMutation.mutateAsync(normalized);
       if (!isValid) {
-        return { valid: false, error: 'Invalid barcode prefix' };
+        return { valid: false, error: 'Invalid barcode prefix - validation failed' };
       }
-    } catch (error) {
-      // If validation fails (e.g., no prefixes configured), allow the scan
-      console.warn('Prefix validation skipped:', error);
+    } catch (error: any) {
+      // Backend validation failed - this is an error condition
+      const errorMsg = error?.message || 'Validation could not be performed';
+      console.error('Backend validation error:', error);
+      
+      // Log error to backend (best-effort)
+      try {
+        await addErrorMutation.mutateAsync({ 
+          errorMessage: `Prefix validation error: ${errorMsg}`, 
+          printer: null 
+        });
+      } catch (logError) {
+        console.warn('Failed to log validation error:', logError);
+      }
+      
+      return { valid: false, error: 'Validation could not be performed - please check prefix configuration' };
     }
 
     return { valid: true };
@@ -163,6 +200,9 @@ export function ScanPrint() {
     const serialToValidate = serial || firstSerial;
     const normalized = normalizeScannedValue(serialToValidate);
     
+    // Update state machine
+    scanStateRef.current = { stage: 'first-validating', serial: normalized };
+    
     const validation = await validateSerial(normalized);
     
     if (!validation.valid) {
@@ -170,7 +210,7 @@ export function ScanPrint() {
       playSound('error');
       toast.error('Invalid Barcode', { description: validation.error });
       
-      // Best-effort error logging (don't block on failure)
+      // Best-effort error logging
       try {
         await addErrorMutation.mutateAsync({ errorMessage: validation.error || 'Invalid barcode', printer: null });
       } catch (logError) {
@@ -178,24 +218,43 @@ export function ScanPrint() {
       }
       
       setBlockingError(validation.error || 'Invalid barcode');
+      scanStateRef.current = { stage: 'idle' };
       return;
     }
 
     setFirstSerial(normalized);
-    firstSerialRef.current = normalized;
     setFirstSerialState('valid');
     playSound('success');
     setScannedSerials((prev) => [...prev, normalized]);
     setBlockingError('');
     toast.success('First serial scanned', { description: normalized });
     
-    // Switch active field to second (no focus, just visual indicator)
+    // Update state machine
+    scanStateRef.current = { stage: 'first-valid', serial: normalized };
+    
+    // Switch active field to second
     setActiveField('second');
   };
 
   const handleSecondSerialSubmit = async (serial?: string) => {
     const serialToValidate = serial || secondSerial;
     const normalized = normalizeScannedValue(serialToValidate);
+    
+    // Get first serial from state machine
+    const currentState = scanStateRef.current;
+    if (currentState.stage !== 'first-valid') {
+      toast.error('Please scan first serial first');
+      return;
+    }
+    
+    const firstSerialValue = currentState.serial;
+    
+    // Update state machine
+    scanStateRef.current = { 
+      stage: 'second-validating', 
+      firstSerial: firstSerialValue, 
+      secondSerial: normalized 
+    };
     
     const validation = await validateSerial(normalized);
     
@@ -204,7 +263,7 @@ export function ScanPrint() {
       playSound('error');
       toast.error('Invalid Barcode', { description: validation.error });
       
-      // Best-effort error logging (don't block on failure)
+      // Best-effort error logging
       try {
         await addErrorMutation.mutateAsync({ errorMessage: validation.error || 'Invalid barcode', printer: null });
       } catch (logError) {
@@ -212,6 +271,8 @@ export function ScanPrint() {
       }
       
       setBlockingError(validation.error || 'Invalid barcode');
+      // Reset to first-valid state
+      scanStateRef.current = { stage: 'first-valid', serial: firstSerialValue };
       return;
     }
 
@@ -222,32 +283,54 @@ export function ScanPrint() {
     setBlockingError('');
     toast.success('Second serial scanned', { description: normalized });
     
-    // Auto-print if both serials are valid
-    if (firstSerialState === 'valid' && firstSerialRef.current) {
-      await handlePrint();
+    // Update state machine - both valid
+    scanStateRef.current = { 
+      stage: 'both-valid', 
+      firstSerial: firstSerialValue, 
+      secondSerial: normalized 
+    };
+    
+    // Attempt auto-print
+    await maybeAutoPrint(firstSerialValue, normalized);
+  };
+
+  const maybeAutoPrint = async (firstSerialValue: string, secondSerialValue: string) => {
+    const currentState = scanStateRef.current;
+    
+    // Guard: only auto-print if both serials are valid
+    if (currentState.stage !== 'both-valid') {
+      return;
+    }
+    
+    // Guard: only auto-print with CPCL protocol
+    if (protocol !== 'CPCL') {
+      toast.info('Auto-print disabled', { description: 'Auto-print only works with CPCL protocol' });
+      return;
+    }
+    
+    // Guard: only auto-print if USB printer is connected
+    if (!usbPrinter.isConnected) {
+      toast.error('Cannot auto-print', { description: 'Printer not connected. Please connect a printer in the Devices tab.' });
+      return;
+    }
+    
+    // Check if already printing (idempotency)
+    if (currentState.stage === 'both-valid') {
+      // Mark as printing to prevent duplicate calls
+      scanStateRef.current = { 
+        stage: 'printing', 
+        firstSerial: firstSerialValue, 
+        secondSerial: secondSerialValue 
+      };
+      
+      await executePrint(firstSerialValue, secondSerialValue);
     }
   };
 
-  const handlePrint = async () => {
-    if (autoPrintInProgressRef.current) {
-      return;
-    }
-
-    if (!firstSerial || !secondSerial) {
-      toast.error('Both serial numbers are required');
-      return;
-    }
-
-    if (!usbPrinter.isConnected) {
-      toast.error('Printer not connected', { description: 'Please connect a printer in the Devices tab' });
-      return;
-    }
-
-    autoPrintInProgressRef.current = true;
-
+  const executePrint = async (firstSerialValue: string, secondSerialValue: string) => {
     try {
       // Get title for first serial
-      const prefix = firstSerial.substring(0, 3);
+      const prefix = firstSerialValue.substring(0, 3);
       const titleResult = await getTitleMutation.mutateAsync(prefix);
       const title = titleResult || 'Dual Band';
 
@@ -255,7 +338,7 @@ export function ScanPrint() {
       const config = labelConfigs.find(() => true) || null;
 
       // Generate CPCL
-      const cpclCommand = generateDualSerialCpcl(firstSerial, secondSerial, title, { config });
+      const cpclCommand = generateDualSerialCpcl(firstSerialValue, secondSerialValue, title, { config });
 
       // Send to printer
       await usbPrinter.sendCpcl(cpclCommand);
@@ -272,7 +355,7 @@ export function ScanPrint() {
       // Log print record
       try {
         await printMutation.mutateAsync({
-          serialNumber: `${firstSerial}, ${secondSerial}`,
+          serialNumber: `${firstSerialValue}, ${secondSerialValue}`,
           labelType: title,
           printer: usbPrinter.deviceInfo?.productName || 'USB Printer',
         });
@@ -286,7 +369,7 @@ export function ScanPrint() {
       setFirstSerialState('neutral');
       setSecondSerialState('neutral');
       setActiveField('first');
-      firstSerialRef.current = '';
+      scanStateRef.current = { stage: 'idle' };
     } catch (error: any) {
       console.error('Print error:', error);
       playSound('error');
@@ -297,15 +380,35 @@ export function ScanPrint() {
       // Best-effort error logging
       try {
         await addErrorMutation.mutateAsync({
-          errorMessage,
+          errorMessage: `Print failed: ${errorMessage}`,
           printer: usbPrinter.deviceInfo?.productName || null,
         });
       } catch (logError) {
         console.warn('Failed to log error:', logError);
       }
-    } finally {
-      autoPrintInProgressRef.current = false;
+      
+      // Reset state machine to both-valid so user can retry
+      scanStateRef.current = { 
+        stage: 'both-valid', 
+        firstSerial: firstSerialValue, 
+        secondSerial: secondSerialValue 
+      };
     }
+  };
+
+  const handlePrint = async () => {
+    // Manual print button - use current state values
+    if (!firstSerial || !secondSerial) {
+      toast.error('Both serial numbers are required');
+      return;
+    }
+
+    if (!usbPrinter.isConnected) {
+      toast.error('Printer not connected', { description: 'Please connect a printer in the Devices tab' });
+      return;
+    }
+
+    await executePrint(firstSerial, secondSerial);
   };
 
   const handleClear = () => {
@@ -315,7 +418,7 @@ export function ScanPrint() {
     setSecondSerialState('neutral');
     setBlockingError('');
     setActiveField('first');
-    firstSerialRef.current = '';
+    scanStateRef.current = { stage: 'idle' };
     toast.info('Cleared all fields');
   };
 
@@ -385,6 +488,21 @@ export function ScanPrint() {
               <div>
                 <p className="text-red-200 font-semibold">Scan Error</p>
                 <p className="text-red-300 text-sm">{blockingError}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Prefix configuration warning */}
+      {prefixes.length === 0 && (
+        <Card className="bg-yellow-950 border-yellow-800">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-6 w-6 text-yellow-400" />
+              <div>
+                <p className="text-yellow-200 font-semibold">Configuration Required</p>
+                <p className="text-yellow-300 text-sm">No valid prefixes configured. Please configure prefixes in Settings to enable scanning.</p>
               </div>
             </div>
           </CardContent>
@@ -475,7 +593,7 @@ export function ScanPrint() {
                   secondSerialState === 'valid' ? 'border-green-500' :
                   secondSerialState === 'invalid' ? 'border-red-500' : ''
                 }`}
-                disabled={firstSerialState !== 'valid' || secondSerialState === 'valid'}
+                disabled={secondSerialState === 'valid' || firstSerialState !== 'valid'}
               />
             </div>
             {secondSerialState === 'valid' && (
@@ -492,22 +610,22 @@ export function ScanPrint() {
       <div className="flex gap-4">
         <Button
           onClick={handlePrint}
-          disabled={firstSerialState !== 'valid' || secondSerialState !== 'valid' || !usbPrinter.isConnected}
-          className="flex-1 bg-blue-600 hover:bg-blue-700 h-14 text-lg"
+          disabled={firstSerialState !== 'valid' || secondSerialState !== 'valid' || !printerConnected}
+          className="flex-1 h-14 text-lg bg-blue-600 hover:bg-blue-700"
         >
-          <Printer className="h-5 w-5 mr-2" />
+          <Printer className="mr-2 h-5 w-5" />
           Print Label
         </Button>
         <Button
           onClick={handleClear}
           variant="outline"
-          className="bg-zinc-900 border-zinc-700 hover:bg-zinc-800 h-14 px-8"
+          className="h-14 px-8 text-lg border-zinc-700 text-white hover:bg-zinc-800"
         >
           Clear
         </Button>
       </div>
 
-      {/* Session stats */}
+      {/* Statistics */}
       <Card className="bg-[#0f0f0f] border-zinc-800">
         <CardHeader>
           <CardTitle className="text-white">Session Statistics</CardTitle>
@@ -517,6 +635,25 @@ export function ScanPrint() {
             <div>
               <p className="text-zinc-400 text-sm">Total Scanned</p>
               <p className="text-3xl font-bold text-white">{totalScanned}</p>
+            </div>
+            <div>
+              <p className="text-zinc-400 text-sm">Valid Scans</p>
+              <p className="text-3xl font-bold text-green-400">{totalScanned}</p>
+            </div>
+            <div>
+              <p className="text-zinc-400 text-sm">Protocol</p>
+              <p className="text-2xl font-bold text-white">{protocol}</p>
+            </div>
+            <div>
+              <p className="text-zinc-400 text-sm">Batch Mode</p>
+              <div className="flex items-center gap-2 mt-2">
+                <Switch
+                  checked={batchMode}
+                  onCheckedChange={setBatchMode}
+                  disabled
+                />
+                <span className="text-white">{batchMode ? 'On' : 'Off'}</span>
+              </div>
             </div>
           </div>
         </CardContent>

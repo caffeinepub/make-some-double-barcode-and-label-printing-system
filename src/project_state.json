@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 73,
+  "projectStateVersion": 77,
   "summary": "Make Some Double!! is a tablet-friendly barcode scanning and label printing web app backed by an Internet Computer (Motoko) canister. The frontend provides four main tabs (Scan & Print, Label Settings, Devices, Diagnostics) and a password-based login screen. After authentication, users can manage printers (logical connections), configure label parameters and validation prefixes, scan two serial numbers to create a combined print record, track counters (notably for “New Dual (72V)” labels), and review/export print history and error logs. The backend canister stores user profiles, label configs, printer records, print history, error logs, prefix rules, and title mappings, and enforces a password-authenticated session per caller principal.",
   "architectural_notes": [
     "Frontend is a React + TypeScript SPA with a dark, touch-optimized UI (Tailwind + shadcn/ui components, lucide-react icons).",
@@ -26,7 +26,7 @@
     "usePrintHistory/useErrorLogs sorting uses Number(b.timestamp - a.timestamp) where timestamps likely deserialize as BigInt; conversion can be lossy for large values and may cause runtime/type issues depending on generated types.",
     "Label Settings preview and CPCL printed output are not using a fully synchronized layout model/units, so adjusting barcode/text positions can change the preview without matching the physical printed label (centering and barcode-to-serial gap drift)."
   ],
-  "isFixRequest": false,
+  "isFixRequest": true,
   "existing_features": [
     {
       "id": "IF-1",
@@ -377,6 +377,46 @@
       "title": "Add a Label Settings control to adjust the serial-number text size, persist it to the saved LabelConfig, and apply it consistently in BOTH the label preview renderer and CPCL print generation.",
       "reqIds": [
         "REQ-14"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-scan-print-so-that-after-the-second-barcode-is-scanned-and-validated-successfully-the-app-reliably-auto-prints-the-cpcl-label-without-requiring-a-manual-print-action",
+      "title": "Fix Scan & Print so that after the second barcode is scanned and validated successfully, the app reliably auto-prints the CPCL label without requiring a manual Print action.",
+      "reqIds": [
+        "REQ-15"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-eliminate-stale-state-conditions-in-scan-print-auto-print-logic-so-that-the-auto-print-decision-is-based-on-the-latest-validated-serials-not-potentially-stale-state-like-firstserialstate-secondserial-state-values",
+      "title": "Eliminate stale-state conditions in Scan & Print auto-print logic so that the auto-print decision is based on the latest validated serials (not potentially stale state like firstSerialState/secondSerial state values).",
+      "reqIds": [
+        "REQ-16"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-improve-operator-visible-error-reporting-for-auto-print-failures-occurring-immediately-after-the-second-scan-including-clear-toast-messages-and-best-effort-error-logging-to-the-backend-error-log",
+      "title": "Improve operator-visible error reporting for auto-print failures occurring immediately after the second scan, including clear toast messages and best-effort error logging to the backend error log.",
+      "reqIds": [
+        "REQ-17"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-fix-scan-print-so-that-after-the-second-serial-number-is-scanned-and-validated-successfully-the-app-reliably-auto-prints-the-cpcl-label-without-requiring-any-manual-print-action-including-when-the-two-scans-happen-very-quickly-back-to-back-no-race-conditions-between-the-first-scan-validation-and-the-second-scan-handler",
+      "title": "Fix Scan & Print so that after the second serial number is scanned and validated successfully, the app reliably auto-prints the CPCL label without requiring any manual Print action, including when the two scans happen very quickly back-to-back (no race conditions between the first-scan validation and the second-scan handler).",
+      "reqIds": [
+        "REQ-18"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-enforce-strict-prefix-validation-for-all-scans-if-any-scanned-serial-number-does-not-match-an-allowed-valid-prefix-the-app-must-show-an-error-immediately-and-must-not-accept-the-serial-into-the-workflow-no-skipping-prefix-validation-on-backend-errors",
+      "title": "Enforce strict prefix validation for all scans: if any scanned serial number does not match an allowed/valid prefix, the app must show an error immediately and must not accept the serial into the workflow (no skipping prefix validation on backend errors).",
+      "reqIds": [
+        "REQ-19"
       ],
       "version": 1
     }

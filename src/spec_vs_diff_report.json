@@ -1,65 +1,42 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-07T00:24:11.486Z",
-  "summary": "REQ-13 and REQ-14 appear implemented in the frontend and shared print/preview utilities (three per-prefix counters in Scan & Print; serial text size persisted via LabelConfig.textSize and applied to both preview and CPCL). Backend REQ-12 cannot be fully verified from the truncated backend/main.mo diff excerpt, but multiple frontend hooks were added that assume new backend counter query/update endpoints exist. Several unrelated tablet/ops improvements and a stable-state migration (dropping v72LabelKey) were added without being requested.",
-  "missing_requirements": [],
-  "hallucinated_features": [
+  "generatedAt": "2026-02-07T08:03:30.197Z",
+  "summary": "Diff shows partial frontend work toward a two-scan state machine in Scan & Print and new/expanded query hooks, but the provided truncated evidence is insufficient to confirm that REQ-18/REQ-19 acceptance criteria are fully implemented end-to-end. Backend evidence does not clearly show deterministic/default prefix configuration or strict prefix validation behavior.",
+  "missing_requirements": [
     {
-      "description": "Stable-state migration that drops `v72LabelKey` from actor state (adds backend/migration.mo and wires migration in backend/main.mo).",
-      "reason": "BuildRequest only requested per-prefix counters and a serial text size setting; it also constrained migrations to only when required. The diff shows a migration specifically removing `v72LabelKey`, which is not mentioned in the request.",
+      "id": "REQ-18",
+      "requirement": "Reliable auto-print after second serial scan (CPCL + USB connected), including back-to-back scans with no race conditions, exactly one print per valid pair, and clear toast if auto-print cannot run (non-CPCL or no printer).",
+      "reason": "ScanPrint.tsx shows a state-machine type definition intended to address races, and it imports printing/protocol/USB contexts and toast, but the diff is truncated before the actual scan handlers, validation coordination, auto-print trigger, and guardrails (CPCL/printer-connected checks) can be verified.",
       "evidence": [
-        "backend/migration.mo",
-        "backend/main.mo"
+        "frontend/src/pages/ScanPrint.tsx (truncated; shows ScanState stages incl. 'printing', imports toast/useUsbPrinter/usePrintProtocol but not the implementation logic)"
       ]
     },
     {
-      "description": "Touch/tablet UI and global styling enhancements (tap highlight, touch-action, coarse-pointer tab sizing changes).",
-      "reason": "Not requested; explicitly outside scope (no redesign beyond what is required for serial text size).",
+      "id": "REQ-19",
+      "requirement": "Strict prefix validation for all scans: invalid prefix errors immediately (toast + red invalid state), invalid serial not accepted into workflow or duplicate list; backend-validation failures show an English toast, log an errorLog entry, and backend has deterministic/default prefix configuration.",
+      "reason": "Frontend imports/useGetValidPrefixes and maintains validation state, but the truncated ScanPrint.tsx does not show the actual prefix-check logic, preventing confirmation that invalid-prefix scans are rejected (not added to scannedSerials / not advancing) and that backend-validation failures produce the required toast + best-effort error log. Backend snippet shows prefix constants and an empty prefixesList, but does not show default prefix initialization or a validation function/config guaranteeing deterministic success by default.",
       "evidence": [
-        "frontend/src/index.css",
-        "frontend-file-summaries.txt"
-      ]
-    },
-    {
-      "description": "Wake Lock feature to prevent tablet sleep.",
-      "reason": "Not requested and falls under adding new real-time/device behavior unrelated to counters/text sizing.",
-      "evidence": [
-        "frontend/src/hooks/useWakeLock.ts",
-        "frontend-file-summaries.txt"
-      ]
-    },
-    {
-      "description": "Login/actor recovery and additional production startup validation logging.",
-      "reason": "Not requested; authentication changes were a non-goal (even if password unchanged, behavior/flow changes were not asked for).",
-      "evidence": [
-        "frontend/src/components/LoginScreen.tsx",
-        "frontend/src/hooks/useActor.ts",
-        "frontend/src/main.tsx",
-        "frontend-file-summaries.txt"
-      ]
-    },
-    {
-      "description": "New/expanded deployment documentation (frontend/DEPLOYMENT.md) and additional IC error classification utilities.",
-      "reason": "Not requested; documentation and broader troubleshooting utilities are outside the specified requirements.",
-      "evidence": [
-        "frontend/DEPLOYMENT.md",
-        "frontend/src/utils/icErrors.ts",
-        "frontend-file-summaries.txt"
+        "frontend/src/pages/ScanPrint.tsx (truncated; shows ValidationState, scannedSerials state, prefixes hook import/use but not enforcement logic)",
+        "backend/main.mo (truncated; shows prefix constants and `var prefixesList = List.empty<Text>();` but no visible default initialization/validation behavior)"
       ]
     }
   ],
-  "confidence": 0.62,
+  "hallucinated_features": [
+    {
+      "description": "Added a manual health-check mutation with a 5-second timeout race.",
+      "reason": "BuildRequest focuses only on Scan & Print auto-print reliability and strict prefix validation; a health-check timeout mutation is not requested by REQ-18/REQ-19.",
+      "evidence": [
+        "frontend/src/hooks/useQueries.ts (truncated; `useHealthCheck` uses Promise.race with a 5000ms timeout)"
+      ]
+    }
+  ],
+  "confidence": 0.46,
   "changed_files": [
     "backend/main.mo",
-    "backend/migration.mo",
     "frontend-file-summaries.txt",
     "frontend/src/hooks/useQueries.ts",
-    "frontend/src/pages/LabelSettings.tsx",
     "frontend/src/pages/ScanPrint.tsx",
-    "frontend/src/utils/cpclTemplates.ts",
-    "frontend/src/utils/labelLayoutModel.ts",
-    "frontend/src/utils/labelPreviewRenderer.ts",
     "project_state.json"
   ]
 }
